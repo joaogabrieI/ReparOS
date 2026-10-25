@@ -59,7 +59,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. O login e as telas de **Clientes** (listagem, busca, ficha, cadastro e edição) já usam a API. As demais telas ainda mostram dados de exemplo (`src/data/exemplo.js`) e os botões delas apenas levam de uma página para outra. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha`.
+Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. O login e a tela de **Clientes** (listagem, busca, ficha, cadastro e edição de clientes e de equipamentos) já usam a API. A busca da tela também acha equipamentos por modelo ou número de série. As demais telas ainda mostram dados de exemplo (`src/data/exemplo.js`) e os botões delas apenas levam de uma página para outra. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha`.
 
 ## Estrutura
 
@@ -67,14 +67,14 @@ Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. O login
 backend/
   app/Enums/           Status da OS (9), situação do orçamento, tipo de item
   app/Models/          Tecnico, Cliente, Equipamento, OrdemServico, Orcamento, ItemOrcamento, HistoricoStatus
-  app/Http/Controllers StatusController (saúde da API), AuthController (login do técnico), ClienteController
-  app/Http/Requests    Validação dos dados do cliente
+  app/Http/Controllers StatusController (saúde da API), AuthController (login do técnico), ClienteController, EquipamentoController
+  app/Http/Requests    Validação dos dados do cliente e do equipamento
   config/cors.php      Liberação do frontend
   database/migrations  Tabelas do modelo de dados
   database/seeders     Dados de exemplo
   routes/api.php       Rotas da API
 frontend/
-  src/services/        Cliente HTTP para a API (token do login) e chamadas de clientes
+  src/services/        Cliente HTTP para a API (token do login) e chamadas de clientes e equipamentos
   src/pages/           Telas (login, cadastro, senha, Início, OS pendentes, Buscar OS, Abrir OS, Detalhe da OS, Clientes)
   src/components/      Componentes reutilizáveis (barra lateral, diálogos, etiqueta de status)
   src/styles/          Design system Nocturne, copiado do projeto de design
@@ -113,7 +113,11 @@ Regras garantidas pelo banco:
 | POST | `/api/clientes` | token | Cadastra cliente (`nome`, `telefone_whatsapp`, `endereco`) |
 | GET | `/api/clientes/{id}` | token | Ficha do cliente com equipamentos e OS |
 | PUT | `/api/clientes/{id}` | token | Edita o cliente |
+| GET | `/api/equipamentos?busca=&cliente_id=` | token | Equipamentos dos clientes do técnico, com o dono e o nº de OS; `busca` filtra por tipo, marca, modelo, número de série ou nome do cliente |
+| POST | `/api/equipamentos` | token | Cadastra equipamento (`cliente_id`, `tipo`, `marca`, `modelo`, `numero_serie` opcional) |
+| GET | `/api/equipamentos/{id}` | token | Ficha do equipamento com o cliente e as OS |
+| PUT | `/api/equipamentos/{id}` | token | Edita o equipamento (não muda de cliente) |
 
-Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente de outro técnico responde 404.
+Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente ou equipamento de outro técnico responde 404. O `tipo` do equipamento aceita Smartphone, Tablet, Notebook, Videogame e Controle de videogame.
 
 Os testes (`php artisan test`) usam o banco local e desfazem tudo ao final de cada teste.
