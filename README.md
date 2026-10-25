@@ -59,7 +59,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Abra http://localhost:5173. A tela inicial é a lista de OS pendentes, e o rodapé da barra lateral mostra se a API e o banco estão conectados. Por enquanto as telas usam dados de exemplo em memória (`src/data/exemplo.js`), até as rotas de clientes e OS existirem na API.
+Abra http://localhost:5173. Por enquanto o frontend é só navegação: as telas mostram dados de exemplo (`src/data/exemplo.js`), não chamam a API e os botões apenas levam de uma página para outra. Login, cadastro e recuperação de senha ficam em `#/entrar`, `#/cadastro` e `#/esqueci-senha`.
 
 ## Estrutura
 
@@ -74,9 +74,10 @@ backend/
   routes/api.php       Rotas da API
 frontend/
   src/services/api.js  Cliente HTTP para a API
-  src/pages/           Telas (OS pendentes, Buscar OS, Abrir OS, Detalhe da OS, Clientes)
+  src/pages/           Telas (login, cadastro, senha, Início, OS pendentes, Buscar OS, Abrir OS, Detalhe da OS, Clientes)
   src/components/      Componentes reutilizáveis (barra lateral, diálogos, etiqueta de status)
-  src/data/            Status da OS, dados de exemplo, estado das telas e textos do WhatsApp
+  src/styles/          Design system Nocturne, copiado do projeto de design
+  src/data/            Status da OS, dados de exemplo e textos do WhatsApp
 ```
 
 ## Modelo de dados
