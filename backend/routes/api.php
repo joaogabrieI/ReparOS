@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\StatusController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/status', StatusController::class);
 
 // Área do técnico
 Route::post('/login', [AuthController::class, 'login']);
