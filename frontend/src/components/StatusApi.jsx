@@ -11,13 +11,13 @@ export default function StatusApi() {
       .catch((erro) => setEstado({ erro: erro.message }))
   }, [])
 
-  if (estado.carregando) return <p className="status">Verificando a API...</p>
-  if (estado.erro) return <p className="status erro">API indisponível: {estado.erro}</p>
+  const cor = estado.carregando ? 'var(--color-neutral-500)' : estado.erro ? 'var(--color-danger)' : 'var(--color-success)'
+  const texto = estado.carregando ? 'Verificando a API...' : estado.erro ? 'API indisponível' : `API online · banco ${estado.dados.banco}`
 
-  const { app, banco } = estado.dados
   return (
-    <p className="status ok">
-      API {app} online · banco de dados: {banco}
-    </p>
+    <div title={estado.erro} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', fontSize: 12, color: 'var(--color-neutral-500)' }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: cor }} />
+      {texto}
+    </div>
   )
 }

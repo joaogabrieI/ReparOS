@@ -1,11 +1,10 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { DadosContext } from './contexto'
 import * as exemplo from './exemplo'
-import { DIAS_PARADA, FLUXO } from './status'
+import { diasDesde } from './regras'
 
 // Estado em memória das telas. Quando as rotas de clientes e OS existirem na API,
 // estas funções passam a chamar services/api.js.
-const DadosContext = createContext(null)
-
 export function DadosProvider({ children }) {
   const [clientes, setClientes] = useState(exemplo.clientes)
   const [equipamentos, setEquipamentos] = useState(exemplo.equipamentos)
@@ -97,24 +96,4 @@ export function DadosProvider({ children }) {
   }, [clientes, equipamentos, ordens])
 
   return <DadosContext.Provider value={valor}>{children}</DadosContext.Provider>
-}
-
-export function useDados() {
-  return useContext(DadosContext)
-}
-
-export function diasDesde(iso) {
-  const inicio = new Date(iso)
-  inicio.setHours(0, 0, 0, 0)
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-  return Math.round((hoje - inicio) / 86400000)
-}
-
-export function estaParada(ordem) {
-  return ordem.status !== 'aberta' && ordem.status !== 'entregue' && ordem.diasNaEtapa > DIAS_PARADA
-}
-
-export function proximoStatus(status) {
-  return FLUXO[FLUXO.indexOf(status) + 1]
 }
