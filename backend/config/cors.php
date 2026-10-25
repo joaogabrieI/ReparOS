@@ -18,7 +18,11 @@ return [
 
     'allowed_origins' => array_map('trim', explode(',', env('FRONTEND_URL', 'http://localhost:5173'))),
 
-    'allowed_origins_patterns' => [],
+    // Em desenvolvimento, aceita localhost/127.0.0.1 em qualquer porta
+    // (o Vite troca para 5174, 5175... quando a 5173 está ocupada).
+    'allowed_origins_patterns' => env('APP_ENV') === 'local'
+        ? ['#^http://(localhost|127\\.0\\.0\\.1)(:\\d+)?$#']
+        : [],
 
     'allowed_headers' => ['*'],
 
