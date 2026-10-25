@@ -1,5 +1,17 @@
 import { useDados } from '../data/contexto'
 import { tecnico } from '../data/exemplo'
+import { api, apagarToken } from '../services/api'
+
+// Encerra o token na API (se ainda valer) e volta para a tela de entrar.
+function sair(e) {
+  e.preventDefault()
+  api('/logout', { method: 'POST' })
+    .catch(() => {})
+    .finally(() => {
+      apagarToken()
+      window.location.hash = '/entrar'
+    })
+}
 
 const ITENS = [
   { id: 'inicio', rotulo: 'Início', icone: 'ph-house', href: '#/' },
@@ -102,7 +114,7 @@ export default function Sidebar({ ativo }) {
           </span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>Técnico</span>
         </div>
-        <a className="btn btn-icon" style={{ width: 30, height: 30, color: 'var(--color-neutral-500)' }} href="#/entrar" title="Sair" aria-label="Sair">
+        <a className="btn btn-icon" style={{ width: 30, height: 30, color: 'var(--color-neutral-500)' }} href="#/entrar" onClick={sair} title="Sair" aria-label="Sair">
           <i className="ph ph-sign-out" />
         </a>
       </div>

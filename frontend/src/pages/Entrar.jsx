@@ -2,6 +2,7 @@ import { useState } from 'react'
 import AcessoLayout, { Destaque } from '../components/AcessoLayout'
 import CampoSenha from '../components/CampoSenha'
 import { navegar } from '../components/roteador'
+import { api, guardarToken } from '../services/api'
 
 const VANTAGENS = ['Fluxo de status com histórico automático', 'Orçamento e avisos pelo WhatsApp', 'OS paradas em destaque']
 
@@ -10,11 +11,21 @@ export default function Entrar() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [manter, setManter] = useState(true)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  // Sem backend por enquanto: entrar só leva para o Início.
-  function enviar(e) {
+  async function enviar(e) {
     e.preventDefault()
-    navegar('/')
+    setEnviando(true)
+    setErro('')
+    try {
+      const { token } = await api('/login', { method: 'POST', body: { email, password: senha }, token: null })
+      guardarToken(token, manter)
+      navegar('/')
+    } catch (falha) {
+      setErro(falha.erros?.email?.[0] ?? falha.erros?.password?.[0] ?? falha.message)
+      setEnviando(false)
+    }
   }
 
   return (
@@ -50,7 +61,7 @@ export default function Entrar() {
           <a href="#/esqueci-senha" style={{ position: 'absolute', right: 0, top: 0, fontSize: 12.5, zIndex: 1 }}>
             Esqueci minha senha
           </a>
-          <CampoSenha id="l-senha" rotulo="Senha" valor={senha} onChange={setSenha} />
+          <CampoSenha id="l-senha" rotulo="Senha" valor={senha} onChange={setSenha} erro={erro} />
         </div>
 
         <label className="check">
@@ -61,8 +72,8 @@ export default function Entrar() {
           Manter conectado neste computador
         </label>
 
-        <button type="submit" className="btn btn-primary btn-block" style={{ height: 44, marginTop: 4 }} >
-          Entrar
+        <button type="submit" className="btn btn-primary btn-block" style={{ height: 44, marginTop: 4 }} disabled={enviando}>
+          {enviando ? 'Entrando…' : 'Entrar'}
           <i className="ph ph-arrow-right" />
         </button>
 
