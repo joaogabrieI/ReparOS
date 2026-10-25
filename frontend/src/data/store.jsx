@@ -29,6 +29,10 @@ export function DadosProvider({ children }) {
       return equipamento
     }
 
+    function atualizarEquipamento(id, dados) {
+      setEquipamentos((atual) => atual.map((e) => (e.id === id ? { ...e, ...dados } : e)))
+    }
+
     function proximoNumeroOs() {
       const maior = Math.max(0, ...ordens.map((o) => Number(o.numero.slice(1))))
       return `#${String(maior + 1).padStart(4, '0')}`
@@ -90,6 +94,7 @@ export function DadosProvider({ children }) {
       cadastrarCliente,
       atualizarCliente,
       cadastrarEquipamento,
+      atualizarEquipamento,
       abrirOs,
       atualizarOs,
     }

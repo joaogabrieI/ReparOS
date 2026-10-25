@@ -15,3 +15,9 @@ export function estaParada(ordem) {
 export function proximoStatus(status) {
   return FLUXO[FLUXO.indexOf(status) + 1]
 }
+
+export const EQUIPAMENTO_VAZIO = { tipo: '', marca: '', modelo: '', numero_serie: '' }
+
+export function equipamentoValido(e) {
+  return e.tipo && e.marca.trim() && e.modelo.trim()
+}
