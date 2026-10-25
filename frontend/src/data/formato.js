@@ -49,8 +49,10 @@ export function totalOrcamento(orcamento) {
   return (orcamento?.itens ?? []).reduce((soma, i) => soma + Number(i.quantidade) * Number(i.valor_unitario), 0)
 }
 
+// "Modelo · Marca", sem repetir a marca quando ela já faz parte do modelo.
 export function nomeEquipamento(e) {
-  return e ? e.modelo : ''
+  if (!e) return ''
+  return e.modelo.toLowerCase().includes(e.marca.toLowerCase()) ? e.modelo : `${e.modelo} · ${e.marca}`
 }
 
 export function inicial(nome) {

@@ -59,7 +59,7 @@ export default function BuscarOs() {
         </div>
 
         <div
-          className="card"
+          className="painel"
           style={{
             padding: '14px 16px',
             display: 'grid',
@@ -128,7 +128,7 @@ export default function BuscarOs() {
           </select>
         </div>
 
-        <div className="card tabela">
+        <div className="painel tabela">
           <div className="tabela-cabecalho" style={{ gridTemplateColumns: GRID }}>
             <span>OS</span>
             <span>Abertura</span>
