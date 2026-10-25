@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
 
         $cliente = $tecnico->clientes()->create([
             'nome' => 'Maria Cliente',
-            'telefone_whatsapp' => '5511911112222',
+            'telefone_whatsapp' => '11911112222',
             'endereco' => 'Rua Exemplo, 123',
         ]);
 
