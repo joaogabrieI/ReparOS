@@ -1,15 +1,20 @@
 import { useRota } from './components/roteador'
 import { DadosProvider } from './data/store'
+import AbrirOs from './pages/AbrirOs'
 import BuscarOs from './pages/BuscarOs'
 import Clientes from './pages/Clientes'
 import OsPendentes from './pages/OsPendentes'
 
 function Tela() {
-  const { caminho } = useRota()
+  const { caminho, params } = useRota()
 
   const partes = caminho.split('/').filter(Boolean)
 
   if (caminho === '/os') return <BuscarOs />
+  if (caminho === '/os/nova') {
+    const cliente = Number(params.get('cliente')) || undefined
+    return <AbrirOs key={cliente} clienteInicial={cliente} />
+  }
   if (partes[0] === 'clientes') {
     if (partes[1] === 'novo') return <Clientes novo />
     return <Clientes clienteId={Number(partes[1]) || undefined} />
