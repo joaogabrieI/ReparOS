@@ -59,7 +59,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Abra http://localhost:5173. Por enquanto o frontend é só navegação: as telas mostram dados de exemplo (`src/data/exemplo.js`), não chamam a API e os botões apenas levam de uma página para outra. Login, cadastro e recuperação de senha ficam em `#/entrar`, `#/cadastro` e `#/esqueci-senha`.
+Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. O login e as telas de **Clientes** (listagem, busca, ficha, cadastro e edição) já usam a API. As demais telas ainda mostram dados de exemplo (`src/data/exemplo.js`) e os botões delas apenas levam de uma página para outra. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha`.
 
 ## Estrutura
 
@@ -67,13 +67,14 @@ Abra http://localhost:5173. Por enquanto o frontend é só navegação: as telas
 backend/
   app/Enums/           Status da OS (9), situação do orçamento, tipo de item
   app/Models/          Tecnico, Cliente, Equipamento, OrdemServico, Orcamento, ItemOrcamento, HistoricoStatus
-  app/Http/Controllers StatusController (saúde da API), AuthController (login do técnico)
+  app/Http/Controllers StatusController (saúde da API), AuthController (login do técnico), ClienteController
+  app/Http/Requests    Validação dos dados do cliente
   config/cors.php      Liberação do frontend
   database/migrations  Tabelas do modelo de dados
   database/seeders     Dados de exemplo
   routes/api.php       Rotas da API
 frontend/
-  src/services/api.js  Cliente HTTP para a API
+  src/services/        Cliente HTTP para a API (token do login) e chamadas de clientes
   src/pages/           Telas (login, cadastro, senha, Início, OS pendentes, Buscar OS, Abrir OS, Detalhe da OS, Clientes)
   src/components/      Componentes reutilizáveis (barra lateral, diálogos, etiqueta de status)
   src/styles/          Design system Nocturne, copiado do projeto de design
@@ -97,7 +98,7 @@ Regras garantidas pelo banco:
 
 - `status` da OS aceita só os 9 valores: aberta, aguardando_diagnostico, diagnostico_realizado, orcamento_enviado, aguardando_aprovacao, orcamento_recusado, em_reparo, pronto_para_retirada, entregue.
 - Cada OS tem no máximo um orçamento (`ordem_servico_id` único em `orcamentos`).
-- O WhatsApp do cliente é único dentro de cada técnico, para que duas assistências possam atender o mesmo cliente.
+- O WhatsApp do cliente é único dentro de cada técnico, para que duas assistências possam atender o mesmo cliente. A API guarda só DDD e número (`11988887777`), então `(11) 98888-7777` e `+55 11 98888-7777` contam como o mesmo telefone.
 - Toda OS nasce como "Aberta" com número próprio, e `OrdemServico::mudarStatus()` troca o status e grava o histórico na mesma transação.
 
 ## Rotas da API
@@ -108,5 +109,11 @@ Regras garantidas pelo banco:
 | POST | `/api/login` | público | Login do técnico, devolve token |
 | GET | `/api/eu` | token | Dados do técnico logado |
 | POST | `/api/logout` | token | Encerra o token atual |
+| GET | `/api/clientes?busca=` | token | Clientes do técnico em ordem de nome, com nº de equipamentos e data da última OS; `busca` filtra por nome ou telefone |
+| POST | `/api/clientes` | token | Cadastra cliente (`nome`, `telefone_whatsapp`, `endereco`) |
+| GET | `/api/clientes/{id}` | token | Ficha do cliente com equipamentos e OS |
+| PUT | `/api/clientes/{id}` | token | Edita o cliente |
 
-Envie o token no cabeçalho `Authorization: Bearer <token>`.
+Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente de outro técnico responde 404.
+
+Os testes (`php artisan test`) usam o banco local e desfazem tudo ao final de cada teste.
