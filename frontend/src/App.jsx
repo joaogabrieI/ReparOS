@@ -17,8 +17,8 @@ function Tela() {
   }
   if (partes[0] === 'os' && partes[1]) return <DetalheOs key={partes[1]} id={Number(partes[1])} />
   if (partes[0] === 'clientes') {
-    if (partes[1] === 'novo') return <Clientes novo />
-    return <Clientes clienteId={Number(partes[1]) || undefined} />
+    if (partes[1] === 'novo') return <Clientes key="novo" novo />
+    return <Clientes key="lista" clienteId={Number(partes[1]) || undefined} />
   }
   return <OsPendentes key={caminho} />
 }

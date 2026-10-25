@@ -112,6 +112,10 @@ export default function Clientes({ clienteId, novo }) {
             setDialogo(null)
             navegar(`/clientes/${c.id}`)
           }}
+          onUsarExistente={(c) => {
+            setDialogo(null)
+            navegar(`/clientes/${c.id}`)
+          }}
         />
       )}
       {dialogo?.tipo === 'equipamento' && <EquipamentoDialog cliente={selecionado} equipamento={dialogo.equipamento} onFechar={fecharDialogo} />}
