@@ -5,15 +5,15 @@ import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { dataHora, diaMes, somenteDigitos } from '../data/formato'
-import { EQUIPAMENTO_VAZIO, equipamentoValido } from '../data/regras'
+import { dataHora, diaMes, nomeEquipamento, somenteDigitos } from '../data/formato'
+import { EQUIPAMENTO_VAZIO } from '../data/regras'
 import { iconeEquipamento } from '../data/status'
 
 const NOVO = 'novo'
 
 function Etapa({ numero, titulo, extra, children }) {
   return (
-    <div className="card card-pad" style={{ gap: 10 }}>
+    <div className="painel painel-pad" style={{ gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
         <span
           style={{
@@ -85,7 +85,7 @@ function LinhaResumo({ rotulo, children }) {
 
 // Abertura de OS: cliente, equipamento, problema relatado e retirada combinada (RF02, RF05, RF07, RF08).
 export default function AbrirOs({ clienteInicial }) {
-  const { clientes, equipamentos, ordens, proximoNumeroOs, cadastrarEquipamento, abrirOs } = useDados()
+  const { clientes, equipamentos, ordens, proximoNumeroOs } = useDados()
   const [clienteId, setClienteId] = useState(clienteInicial ?? null)
   const [busca, setBusca] = useState('')
   const [novoCliente, setNovoCliente] = useState(false)
@@ -118,20 +118,8 @@ export default function AbrirOs({ clienteInicial }) {
   // Ao abrir a tela pela ficha do cliente, já escolhe o primeiro equipamento.
   if (cliente && equipamentoId === null) setEquipamentoId(doCliente.length ? doCliente[0].id : NOVO)
 
-  const equipamentoOk = equipamentoId === NOVO ? equipamentoValido(novoEquip) : Boolean(equipamento)
-  const valido = cliente && equipamentoOk && problema.trim() && retiradaData && retiradaHora
-
-  function salvar() {
-    if (!valido) return
-    const equip = equipamentoId === NOVO ? cadastrarEquipamento({ ...novoEquip, cliente_id: cliente.id }) : equipamento
-    const ordem = abrirOs({
-      equipamento_id: equip.id,
-      problema_relatado: problema.trim(),
-      retirada_agendada: new Date(`${retiradaData}T${retiradaHora}`).toISOString(),
-      retirada_local: local.trim(),
-    })
-    navegar(`/os/${ordem.id}`)
-  }
+  // Sem backend por enquanto: abrir a OS só leva para a lista de pendentes.
+  const salvar = () => navegar('/pendentes')
 
   const nomeEquipResumo = equipamentoId === NOVO ? (novoEquip.modelo ? `${novoEquip.modelo} (novo)` : 'Novo equipamento') : equipamento?.modelo
 
@@ -211,7 +199,7 @@ export default function AbrirOs({ clienteInicial }) {
                         marcada={equipamentoId === e.id}
                         onClick={() => setEquipamentoId(e.id)}
                         icone={iconeEquipamento(e.tipo)}
-                        titulo={`${e.modelo} · ${e.marca}`}
+                        titulo={nomeEquipamento(e)}
                         detalhe={detalhe}
                       />
                     )
@@ -259,7 +247,7 @@ export default function AbrirOs({ clienteInicial }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 52 }}>
-          <div className="card card-pad">
+          <div className="painel painel-pad">
             <div style={{ fontWeight: 500 }}>Resumo da OS</div>
             <LinhaResumo rotulo="Número">
               <span style={{ fontFamily: 'var(--font-mono)' }}>{proximoNumeroOs()}</span>
@@ -276,7 +264,7 @@ export default function AbrirOs({ clienteInicial }) {
             </LinhaResumo>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>Número e data são gerados automaticamente ao salvar.</div>
           </div>
-          <button className="btn btn-primary btn-block" style={{ height: 44 }} disabled={!valido} onClick={salvar}>
+          <button className="btn btn-primary btn-block" style={{ height: 44 }} onClick={salvar}>
             <i className="ph ph-check" />
             Abrir OS
           </button>
@@ -289,7 +277,7 @@ export default function AbrirOs({ clienteInicial }) {
       {novoCliente && (
         <ClienteDialog
           onFechar={() => setNovoCliente(false)}
-          onSalvo={escolherCliente}
+          onSalvo={() => setNovoCliente(false)}
           onUsarExistente={escolherCliente}
         />
       )}

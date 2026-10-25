@@ -5,7 +5,7 @@ import { navegar } from './roteador'
 
 // Formulário de cliente (novo ou edição) com aviso de telefone já cadastrado (RF01, RF03, RF04).
 export default function ClienteDialog({ cliente, onFechar, onSalvo, onUsarExistente }) {
-  const { clientes, equipamentos, ordens, cadastrarCliente, atualizarCliente } = useDados()
+  const { clientes, equipamentos, ordens } = useDados()
   const [form, setForm] = useState({
     nome: cliente?.nome ?? '',
     telefone_whatsapp: cliente?.telefone_whatsapp ?? '',
@@ -18,18 +18,10 @@ export default function ClienteDialog({ cliente, onFechar, onSalvo, onUsarExiste
   const duplicado =
     digitos.length >= 10 ? clientes.find((c) => c.id !== cliente?.id && somenteDigitos(c.telefone_whatsapp) === digitos) : null
 
-  const valido = form.nome.trim() && digitos.length >= 10 && form.endereco.trim() && !duplicado
-
+  // Sem backend por enquanto: salvar só fecha o formulário.
   function salvar(e) {
     e.preventDefault()
-    if (!valido) return
-    const dados = { nome: form.nome.trim(), telefone_whatsapp: form.telefone_whatsapp.trim(), endereco: form.endereco.trim() }
-    if (cliente) {
-      atualizarCliente(cliente.id, dados)
-      onSalvo?.({ ...cliente, ...dados })
-    } else {
-      onSalvo?.(cadastrarCliente(dados))
-    }
+    onSalvo?.()
   }
 
   let resumoDuplicado = ''
@@ -112,7 +104,7 @@ export default function ClienteDialog({ cliente, onFechar, onSalvo, onUsarExiste
           <button type="button" className="btn btn-secondary" onClick={onFechar}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn-primary" disabled={!valido}>
+          <button type="submit" className="btn btn-primary">
             Salvar cliente
           </button>
         </div>

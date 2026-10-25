@@ -1,18 +1,14 @@
 import { useState } from 'react'
-import { useDados } from '../data/contexto'
-import { EQUIPAMENTO_VAZIO, equipamentoValido } from '../data/regras'
+import { EQUIPAMENTO_VAZIO } from '../data/regras'
 import EquipamentoCampos from './EquipamentoCampos'
 
 // Cadastro e edição de equipamento vinculado a um cliente (RF05, RF06).
 export default function EquipamentoDialog({ cliente, equipamento, onFechar }) {
-  const { cadastrarEquipamento, atualizarEquipamento } = useDados()
   const [form, setForm] = useState(equipamento ?? EQUIPAMENTO_VAZIO)
 
+  // Sem backend por enquanto: salvar só fecha o formulário.
   function salvar(e) {
     e.preventDefault()
-    if (!equipamentoValido(form)) return
-    if (equipamento) atualizarEquipamento(equipamento.id, form)
-    else cadastrarEquipamento({ ...form, cliente_id: cliente.id })
     onFechar()
   }
 
@@ -35,7 +31,7 @@ export default function EquipamentoDialog({ cliente, equipamento, onFechar }) {
           <button type="button" className="btn btn-secondary" onClick={onFechar}>
             Cancelar
           </button>
-          <button type="submit" className="btn btn-primary" disabled={!equipamentoValido(form)}>
+          <button type="submit" className="btn btn-primary">
             Salvar equipamento
           </button>
         </div>

@@ -5,7 +5,7 @@ import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { data, inicial, somenteDigitos } from '../data/formato'
+import { data, inicial, nomeEquipamento, somenteDigitos } from '../data/formato'
 import { iconeEquipamento } from '../data/status'
 
 const GRID_OS = '76px 100px minmax(0,1fr) 220px'
@@ -55,13 +55,13 @@ export default function Clientes({ clienteId, novo }) {
             <i className="ph ph-magnifying-glass" />
             <input
               className="input"
-              style={{ height: 38, background: 'var(--color-surface)' }}
+              style={{ minHeight: 38 }}
               placeholder="Buscar por nome ou telefone"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="painel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {lista.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>Nenhum cliente encontrado.</div>}
             {lista.map((c) => {
               const marcado = c.id === selecionado?.id
@@ -108,10 +108,7 @@ export default function Clientes({ clienteId, novo }) {
         <ClienteDialog
           cliente={dialogo.cliente}
           onFechar={fecharDialogo}
-          onSalvo={(c) => {
-            setDialogo(null)
-            navegar(`/clientes/${c.id}`)
-          }}
+          onSalvo={fecharDialogo}
           onUsarExistente={(c) => {
             setDialogo(null)
             navegar(`/clientes/${c.id}`)
@@ -162,7 +159,7 @@ function FichaCliente({ cliente, equipamentos, ordens, onEditar, onEquipamento }
       </div>
 
       {equipamentos.length === 0 && (
-        <div className="card" style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>
+        <div className="painel" style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>
           Nenhum equipamento cadastrado para este cliente.
         </div>
       )}
@@ -173,7 +170,7 @@ function FichaCliente({ cliente, equipamentos, ordens, onEditar, onEquipamento }
           .filter(Boolean)
           .join(' · ')
         return (
-          <div key={e.id} className="card tabela">
+          <div key={e.id} className="painel tabela">
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: oss.length ? '1px solid var(--color-neutral-800)' : 'none' }}>
               <div
                 style={{
@@ -191,7 +188,7 @@ function FichaCliente({ cliente, equipamentos, ordens, onEditar, onEquipamento }
               </div>
               <div style={{ flex: 1, lineHeight: 1.35 }}>
                 <div style={{ fontSize: 15, fontWeight: 500 }}>
-                  {e.modelo} · {e.marca}
+                  {nomeEquipamento(e)}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>{meta}</div>
               </div>
