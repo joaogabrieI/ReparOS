@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDados } from '../data/contexto'
 import { data, telefone, telefoneNormalizado } from '../data/formato'
+import ErroCampo from './ErroCampo'
 import { navegar } from './roteador'
 
 // Formulário de cliente (novo ou edição) com aviso de telefone já cadastrado (RF01, RF03, RF04).
@@ -144,16 +145,6 @@ export default function ClienteDialog({ cliente, clientes: clientesApi, onSalvar
           </button>
         </div>
       </form>
-    </div>
-  )
-}
-
-function ErroCampo({ erros }) {
-  if (!erros?.length) return null
-  return (
-    <div className="erro-campo">
-      <i className="ph ph-warning-circle" />
-      {erros[0]}
     </div>
   )
 }

@@ -52,6 +52,7 @@ export function totalOrcamento(orcamento) {
 // "Modelo · Marca", sem repetir a marca quando ela já faz parte do modelo.
 export function nomeEquipamento(e) {
   if (!e) return ''
+  if (!e.marca) return e.modelo ?? ''
   return e.modelo.toLowerCase().includes(e.marca.toLowerCase()) ? e.modelo : `${e.modelo} · ${e.marca}`
 }
 

@@ -7,14 +7,17 @@ import { navegar } from '../components/roteador'
 import { data, inicial, nomeEquipamento, telefone } from '../data/formato'
 import { iconeEquipamento } from '../data/status'
 import { buscarCliente, listarClientes, salvarCliente } from '../services/clientes'
+import { listarEquipamentos, salvarEquipamento } from '../services/equipamentos'
 
 const GRID_OS = '160px 100px minmax(0,1fr) 220px'
 
 // Lista de clientes com busca e ficha com equipamentos e OS anteriores (RF02, RF04, RF05, RF06).
-// Os dados vêm da API (/api/clientes).
+// Os dados vêm da API (/api/clientes e /api/equipamentos). A busca também acha equipamentos
+// por modelo ou número de série e leva à ficha do dono.
 export default function Clientes({ clienteId, novo }) {
   const [clientes, setClientes] = useState(null)
   const [encontrados, setEncontrados] = useState(null)
+  const [equipamentosEncontrados, setEquipamentosEncontrados] = useState([])
   const [ficha, setFicha] = useState(null)
   const [erro, setErro] = useState('')
   const [versao, setVersao] = useState(0)
@@ -33,8 +36,12 @@ export default function Clientes({ clienteId, novo }) {
     if (!busca.trim()) return
     let ativo = true
     const espera = setTimeout(() => {
-      listarClientes(busca)
-        .then((lista) => ativo && setEncontrados(lista))
+      Promise.all([listarClientes(busca), listarEquipamentos({ busca })])
+        .then(([lista, equipamentos]) => {
+          if (!ativo) return
+          setEncontrados(lista)
+          setEquipamentosEncontrados(equipamentos)
+        })
         .catch((e) => ativo && setErro(e.message))
     }, 250)
     return () => {
@@ -58,6 +65,7 @@ export default function Clientes({ clienteId, novo }) {
 
   // Enquanto a busca não volta, a lista mostra o resultado anterior.
   const lista = (busca.trim() ? (encontrados ?? clientes) : clientes) ?? []
+  const equipamentosNaBusca = busca.trim() ? equipamentosEncontrados : []
   const selecionado = ficha?.id === selecionadoId ? ficha : null
 
   function fecharDialogo() {
@@ -69,6 +77,11 @@ export default function Clientes({ clienteId, novo }) {
     setDialogo(null)
     setVersao((v) => v + 1)
     navegar(`/clientes/${salvo.id}`)
+  }
+
+  function equipamentoSalvo() {
+    setDialogo(null)
+    setVersao((v) => v + 1)
   }
 
   return (
@@ -97,14 +110,14 @@ export default function Clientes({ clienteId, novo }) {
             <input
               className="input"
               style={{ minHeight: 38 }}
-              placeholder="Buscar por nome ou telefone"
+              placeholder="Buscar por nome, telefone ou equipamento"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
           <div className="painel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {erro && <div className="erro-campo" style={{ padding: 18, marginTop: 0 }}>{erro}</div>}
-            {!erro && clientes && lista.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>Nenhum cliente encontrado.</div>}
+            {!erro && clientes && lista.length === 0 && equipamentosNaBusca.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>Nenhum cliente encontrado.</div>}
             {lista.map((c) => {
               const marcado = c.id === selecionadoId
               const n = c.equipamentos_count
@@ -132,6 +145,30 @@ export default function Clientes({ clienteId, novo }) {
                 </a>
               )
             })}
+            {equipamentosNaBusca.length > 0 && (
+              <div style={{ padding: '10px 14px 6px', fontSize: 12, color: 'var(--color-neutral-500)', borderBottom: '1px solid var(--color-neutral-900)' }}>
+                Equipamentos
+              </div>
+            )}
+            {equipamentosNaBusca.map((e) => (
+              <a
+                key={`e${e.id}`}
+                href={`#/clientes/${e.cliente_id}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 14px', borderBottom: '1px solid var(--color-neutral-900)', color: 'inherit' }}
+              >
+                <span className="avatar">
+                  <i className={`ph ${iconeEquipamento(e.tipo)}`} />
+                </span>
+                <div style={{ flex: 1, lineHeight: 1.35, minWidth: 0 }}>
+                  <div className="truncar" style={{ fontSize: 14, fontWeight: 500 }}>
+                    {nomeEquipamento(e)}
+                  </div>
+                  <div className="truncar" style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>
+                    {[e.cliente.nome, e.numero_serie && `nº de série ${e.numero_serie}`].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+              </a>
+            ))}
           </div>
         </div>
 
@@ -157,7 +194,15 @@ export default function Clientes({ clienteId, novo }) {
           }}
         />
       )}
-      {dialogo?.tipo === 'equipamento' && <EquipamentoDialog cliente={selecionado} equipamento={dialogo.equipamento} onFechar={fecharDialogo} />}
+      {dialogo?.tipo === 'equipamento' && (
+        <EquipamentoDialog
+          cliente={selecionado}
+          equipamento={dialogo.equipamento}
+          onSalvar={(dados) => salvarEquipamento(dados, dialogo.equipamento?.id)}
+          onFechar={fecharDialogo}
+          onSalvo={equipamentoSalvo}
+        />
+      )}
     </Layout>
   )
 }
