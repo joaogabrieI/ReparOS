@@ -18,6 +18,16 @@ export function proximoStatus(status) {
 
 export const EQUIPAMENTO_VAZIO = { tipo: '', marca: '', modelo: '', numero_serie: '' }
 
-export function equipamentoValido(e) {
-  return e.tipo && e.marca.trim() && e.modelo.trim()
+// Dicas de senha exibidas no cadastro e na nova senha.
+export function regrasSenha(senha) {
+  return [
+    { rotulo: '8+ caracteres', ok: senha.length >= 8 },
+    { rotulo: 'Um número', ok: /\d/.test(senha) },
+    { rotulo: 'Um símbolo', ok: /[^A-Za-z0-9]/.test(senha) },
+  ]
+}
+
+// Peças trocadas no reparo: começam pelas peças previstas no orçamento.
+export function pecasDoOrcamento(orcamento) {
+  return (orcamento?.itens ?? []).filter((i) => i.tipo === 'peca').map((i) => ({ descricao: i.descricao, quantidade: i.quantidade, prevista: true }))
 }
