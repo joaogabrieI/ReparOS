@@ -63,6 +63,20 @@ export function somenteDigitos(texto) {
   return texto.replace(/\D/g, '')
 }
 
+// DDD + número, sem o código do país: a mesma regra que a API usa para não repetir telefone.
+export function telefoneNormalizado(texto) {
+  const d = somenteDigitos(texto ?? '')
+  return d.length > 11 && d.startsWith('55') ? d.slice(2) : d
+}
+
+// Telefone guardado só com dígitos, exibido como (11) 98888-7777.
+export function telefone(texto) {
+  const d = telefoneNormalizado(texto)
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return texto ?? ''
+}
+
 // Link wa.me com a mensagem pronta; o técnico envia manualmente (RF18).
 export function linkWhatsApp(telefone, mensagem) {
   let numero = somenteDigitos(telefone)

@@ -1,33 +1,74 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ClienteDialog from '../components/ClienteDialog'
 import EquipamentoDialog from '../components/EquipamentoDialog'
 import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
-import { useDados } from '../data/contexto'
-import { data, inicial, nomeEquipamento, somenteDigitos } from '../data/formato'
+import { data, inicial, nomeEquipamento, telefone } from '../data/formato'
 import { iconeEquipamento } from '../data/status'
+import { buscarCliente, listarClientes, salvarCliente } from '../services/clientes'
 
-const GRID_OS = '76px 100px minmax(0,1fr) 220px'
+const GRID_OS = '160px 100px minmax(0,1fr) 220px'
 
 // Lista de clientes com busca e ficha com equipamentos e OS anteriores (RF02, RF04, RF05, RF06).
+// Os dados vêm da API (/api/clientes).
 export default function Clientes({ clienteId, novo }) {
-  const { clientes, equipamentos, ordens } = useDados()
+  const [clientes, setClientes] = useState(null)
+  const [encontrados, setEncontrados] = useState(null)
+  const [ficha, setFicha] = useState(null)
+  const [erro, setErro] = useState('')
+  const [versao, setVersao] = useState(0)
   const [busca, setBusca] = useState('')
   const [dialogo, setDialogo] = useState(novo ? { tipo: 'cliente' } : null)
 
-  const ordenados = [...clientes].sort((a, b) => a.nome.localeCompare(b.nome))
-  const termo = busca.trim().toLowerCase()
-  const digitos = somenteDigitos(busca)
-  const lista = ordenados.filter(
-    (c) => !termo || c.nome.toLowerCase().includes(termo) || (digitos && somenteDigitos(c.telefone_whatsapp).includes(digitos)),
-  )
-  const selecionado = clientes.find((c) => c.id === clienteId) ?? ordenados[0]
-  const qtdEquip = (id) => equipamentos.filter((e) => e.cliente_id === id).length
+  // Todos os clientes: contagem, aviso de telefone repetido e cliente aberto por padrão.
+  useEffect(() => {
+    listarClientes()
+      .then(setClientes)
+      .catch((e) => setErro(e.message))
+  }, [versao])
+
+  // Busca por nome ou telefone feita na API, com uma pequena espera enquanto digita.
+  useEffect(() => {
+    if (!busca.trim()) return
+    let ativo = true
+    const espera = setTimeout(() => {
+      listarClientes(busca)
+        .then((lista) => ativo && setEncontrados(lista))
+        .catch((e) => ativo && setErro(e.message))
+    }, 250)
+    return () => {
+      ativo = false
+      clearTimeout(espera)
+    }
+  }, [busca, versao])
+
+  const selecionadoId = clienteId ?? clientes?.[0]?.id
+
+  useEffect(() => {
+    if (!selecionadoId) return
+    let ativo = true
+    buscarCliente(selecionadoId)
+      .then((c) => ativo && setFicha(c))
+      .catch((e) => ativo && setErro(e.message))
+    return () => {
+      ativo = false
+    }
+  }, [selecionadoId, versao])
+
+  // Enquanto a busca não volta, a lista mostra o resultado anterior.
+  const lista = (busca.trim() ? (encontrados ?? clientes) : clientes) ?? []
+  const selecionado = ficha?.id === selecionadoId ? ficha : null
 
   function fecharDialogo() {
     setDialogo(null)
-    if (novo) navegar(selecionado ? `/clientes/${selecionado.id}` : '/clientes')
+    if (novo) navegar(selecionadoId ? `/clientes/${selecionadoId}` : '/clientes')
+  }
+
+  function clienteSalvo(salvo) {
+    setDialogo(null)
+    setVersao((v) => v + 1)
+    navegar(`/clientes/${salvo.id}`)
   }
 
   return (
@@ -49,7 +90,7 @@ export default function Clientes({ clienteId, novo }) {
         <div style={{ padding: '24px 20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 14, borderRight: '1px solid var(--color-neutral-900)' }}>
           <div>
             <div className="pagina-titulo">Clientes</div>
-            <div className="pagina-subtitulo">{clientes.length} cadastrados</div>
+            <div className="pagina-subtitulo">{clientes ? `${clientes.length} cadastrados` : 'Carregando…'}</div>
           </div>
           <div className="input-icone">
             <i className="ph ph-magnifying-glass" />
@@ -62,10 +103,11 @@ export default function Clientes({ clienteId, novo }) {
             />
           </div>
           <div className="painel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {lista.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>Nenhum cliente encontrado.</div>}
+            {erro && <div className="erro-campo" style={{ padding: 18, marginTop: 0 }}>{erro}</div>}
+            {!erro && clientes && lista.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)', fontSize: 13.5 }}>Nenhum cliente encontrado.</div>}
             {lista.map((c) => {
-              const marcado = c.id === selecionado?.id
-              const n = qtdEquip(c.id)
+              const marcado = c.id === selecionadoId
+              const n = c.equipamentos_count
               return (
                 <a
                   key={c.id}
@@ -84,7 +126,7 @@ export default function Clientes({ clienteId, novo }) {
                   <span className="avatar">{inicial(c.nome)}</span>
                   <div style={{ flex: 1, lineHeight: 1.35 }}>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{c.nome}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>{c.telefone_whatsapp}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>{telefone(c.telefone_whatsapp)}</div>
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>{n} equip.</span>
                 </a>
@@ -96,8 +138,6 @@ export default function Clientes({ clienteId, novo }) {
         {selecionado && (
           <FichaCliente
             cliente={selecionado}
-            equipamentos={equipamentos.filter((e) => e.cliente_id === selecionado.id)}
-            ordens={ordens}
             onEditar={() => setDialogo({ tipo: 'cliente', cliente: selecionado })}
             onEquipamento={(equipamento) => setDialogo({ tipo: 'equipamento', equipamento })}
           />
@@ -107,8 +147,10 @@ export default function Clientes({ clienteId, novo }) {
       {dialogo?.tipo === 'cliente' && (
         <ClienteDialog
           cliente={dialogo.cliente}
+          clientes={clientes ?? []}
+          onSalvar={(dados) => salvarCliente(dados, dialogo.cliente?.id)}
           onFechar={fecharDialogo}
-          onSalvo={fecharDialogo}
+          onSalvo={clienteSalvo}
           onUsarExistente={(c) => {
             setDialogo(null)
             navegar(`/clientes/${c.id}`)
@@ -120,7 +162,9 @@ export default function Clientes({ clienteId, novo }) {
   )
 }
 
-function FichaCliente({ cliente, equipamentos, ordens, onEditar, onEquipamento }) {
+function FichaCliente({ cliente, onEditar, onEquipamento }) {
+  const { equipamentos } = cliente
+
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
@@ -132,7 +176,7 @@ function FichaCliente({ cliente, equipamentos, ordens, onEditar, onEquipamento }
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 13.5, color: 'var(--color-neutral-400)', marginTop: 4 }}>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <i className="ph ph-whatsapp-logo" />
-              {cliente.telefone_whatsapp}
+              {telefone(cliente.telefone_whatsapp)}
             </span>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <i className="ph ph-map-pin" />
@@ -165,7 +209,7 @@ function FichaCliente({ cliente, equipamentos, ordens, onEditar, onEquipamento }
       )}
 
       {equipamentos.map((e) => {
-        const oss = ordens.filter((o) => o.equipamento_id === e.id).sort((a, b) => b.data_abertura.localeCompare(a.data_abertura))
+        const oss = e.ordens_servico
         const meta = [e.tipo, e.numero_serie && `nº de série ${e.numero_serie}`, oss.length === 1 ? '1 OS' : `${oss.length} OS`]
           .filter(Boolean)
           .join(' · ')
