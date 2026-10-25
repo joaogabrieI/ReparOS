@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClienteController;
+use App\Http\Controllers\EquipamentoController;
 use App\Http\Controllers\StatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,8 +16,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::apiResource('clientes', ClienteController::class)->except('destroy');
+    Route::apiResource('equipamentos', EquipamentoController::class)->except('destroy');
 
-    // Próximas rotas: equipamentos, ordens de serviço e orçamentos.
+    // Próximas rotas: ordens de serviço e orçamentos.
 });
 
 // Área do cliente (sem login): acompanhar a OS pelo número
