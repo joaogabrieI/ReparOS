@@ -1,3 +1,4 @@
+import { pecasDoOrcamento } from './regras'
 import { FLUXO } from './status'
 
 // Dados de exemplo usados enquanto a API de clientes e OS não existe.
@@ -9,6 +10,9 @@ function diasAtras(dias, hora = 10, minuto = 0) {
   d.setHours(hora, minuto, 0, 0)
   return d.toISOString()
 }
+
+// Técnico mostrado na barra lateral e na saudação do Início.
+export const tecnico = { nome: 'Marcos Teixeira', nome_assistencia: 'Mtec Reparos' }
 
 export const clientes = [
   { id: 1, nome: 'Bruno Filho', telefone_whatsapp: '(11) 98383-0479', endereco: 'Av. Celso Garcia, 2100 — Belém, São Paulo' },
@@ -46,10 +50,12 @@ const linhas = [
   ['#1040', 13, 'aguardando_diagnostico', 'Bateria estufada', 2, 1],
   ['#1039', 9, 'diagnostico_realizado', 'Vidro trincado após queda', 2, 0, {
     diagnostico: 'Vidro e touch trincados. Display funcionando normalmente, sem danos na carcaça.',
+    servico_necessario: 'Trocar o conjunto de vidro e touch e testar o display.',
   }],
-  ['#1038', 10, 'aguardando_aprovacao', 'Lento, não inicia o Windows', 4, 3, {
-    diagnostico: 'SSD com setores defeituosos e Windows corrompido. Memória e placa-mãe sem falhas.',
-    orcamento: [[['peca', 'SSD 480 GB', 1, 260], ['servico', 'Instalação do Windows e backup', 1, 150]], 3],
+  ['#1038', 10, 'aguardando_aprovacao', 'Notebook muito lento e agora não inicia o Windows, fica na tela de carregamento.', 4, 3, {
+    diagnostico: 'HD com setores defeituosos (312 setores realocados no teste SMART). Sistema não conclui a inicialização.',
+    servico_necessario: 'Trocar o HD por SSD 480GB e reinstalar o sistema operacional. Recomendada limpeza interna com troca de pasta térmica.',
+    orcamento: [[['peca', 'SSD Kingston 480GB', 1, 220], ['peca', 'Pasta térmica', 1, 30], ['servico', 'Instalação do SSD + reinstalação do sistema', 1, 150], ['servico', 'Limpeza interna', 1, 70]], 2],
   }],
   ['#1037', 1, 'em_reparo', 'Tela quebrada, touch falhando', 5, 2, {
     diagnostico: 'Tela frontal quebrada com touch inoperante na parte inferior.',
@@ -64,39 +70,37 @@ const linhas = [
     diagnostico: 'Potenciômetro do analógico esquerdo desgastado.',
     orcamento: [[['peca', 'Módulo analógico', 1, 45], ['servico', 'Troca do analógico', 1, 60]], 2, 'aprovado'],
     servico_executado: 'Troca do módulo analógico esquerdo e calibração.',
-    pecas_trocadas: 'Módulo analógico 3D (1 un.)',
   }],
   ['#1033', 7, 'entregue', 'Não liga após atualização', 14, 7, {
     diagnostico: 'Fonte interna com capacitor estufado.',
     orcamento: [[['peca', 'Fonte interna', 1, 220], ['servico', 'Troca da fonte', 1, 120]], 3, 'aprovado'],
     servico_executado: 'Troca da fonte interna e limpeza.',
-    pecas_trocadas: 'Fonte interna (1 un.)',
   }],
   ['#1031', 5, 'entregue', 'Desligando em jogos pesados', 18, 11, {
     diagnostico: 'Pasta térmica ressecada e cooler com poeira acumulada.',
     orcamento: [[['servico', 'Limpeza interna e troca de pasta térmica', 1, 180]], 1, 'aprovado'],
     servico_executado: 'Limpeza completa e troca de pasta térmica.',
-    pecas_trocadas: '',
   }],
   ['#1012', 2, 'entregue', 'Não liga', 55, 50, {
     diagnostico: 'Bateria sem carga e conector flat solto.',
     orcamento: [[['peca', 'Bateria DualShock 4', 1, 70], ['servico', 'Troca de bateria', 1, 40]], 2, 'aprovado'],
     servico_executado: 'Troca de bateria.',
-    pecas_trocadas: 'Bateria (1 un.)',
   }],
   ['#0981', 1, 'entregue', 'Bateria descarregando rápido', 236, 230, {
     diagnostico: 'Bateria com 71% de saúde.',
     orcamento: [[['peca', 'Bateria iPhone 13', 1, 320], ['servico', 'Troca de bateria', 1, 80]], 1, 'aprovado'],
     servico_executado: 'Troca de bateria.',
-    pecas_trocadas: 'Bateria (1 un.)',
   }],
   ['#0874', 2, 'entregue', 'Botão R2 travando', 166, 160, {
     diagnostico: 'Mola do gatilho R2 quebrada.',
     orcamento: [[['peca', 'Mola do gatilho', 1, 15], ['servico', 'Troca da mola', 1, 40]], 1, 'aprovado'],
     servico_executado: 'Troca da mola do R2.',
-    pecas_trocadas: 'Mola do gatilho (1 un.)',
   }],
 ]
+
+function servicosDoOrcamento(orcamento) {
+  return (orcamento?.itens ?? []).filter((i) => i.tipo === 'servico').map((i) => i.descricao).join('; ')
+}
 
 function montarOrdem([numero, equipamentoId, status, problema, diasAbertura, diasEtapa, extras = {}], id) {
   const etapas = FLUXO.slice(0, FLUXO.indexOf(status) + 1)
@@ -132,8 +136,10 @@ function montarOrdem([numero, equipamentoId, status, problema, diasAbertura, dia
     retirada_local: '',
     data_retirada: quando('aguardando_diagnostico'),
     diagnostico: extras.diagnostico ?? '',
+    servico_necessario: extras.servico_necessario ?? servicosDoOrcamento(orcamento),
     servico_executado: extras.servico_executado ?? '',
-    pecas_trocadas: extras.pecas_trocadas ?? '',
+    pecas_trocadas: extras.servico_executado ? pecasDoOrcamento(orcamento) : [],
+    recebido_por: status === 'entregue' ? '' : null,
     data_entrega: quando('entregue'),
     orcamento,
     historico,

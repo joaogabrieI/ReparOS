@@ -11,9 +11,9 @@ const GRID = '76px minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.4fr) 150px 190px'
 const PERIGO = 'oklch(0.82 0.12 25)'
 
 // Tela inicial: OS não entregues agrupadas por status, com destaque para as paradas (RF21, RF24).
-export default function OsPendentes() {
+export default function OsPendentes({ buscaInicial = '' }) {
   const { ordens } = useDados()
-  const [busca, setBusca] = useState('')
+  const [busca, setBusca] = useState(buscaInicial)
   const [soParadas, setSoParadas] = useState(false)
 
   const pendentes = ordens.filter((o) => o.status !== 'entregue')
@@ -41,7 +41,7 @@ export default function OsPendentes() {
             <i className="ph ph-magnifying-glass" />
             <input
               className="input"
-              style={{ height: 34, background: 'var(--color-surface)' }}
+              style={{ minHeight: 34 }}
               placeholder="Nº da OS, cliente ou equipamento"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
@@ -79,7 +79,7 @@ export default function OsPendentes() {
           {faixa.map(({ status, n }) => (
             <div
               key={status}
-              className="card"
+              className="painel"
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 'var(--radius-md)', opacity: n ? 1 : 0.55 }}
             >
               <span style={{ width: 8, height: 8, borderRadius: 2, flex: 'none', alignSelf: 'flex-start', marginTop: 4, background: corStatus(status) }} />
@@ -89,7 +89,7 @@ export default function OsPendentes() {
           ))}
         </div>
 
-        <div className="card tabela">
+        <div className="painel tabela">
           <div className="tabela-cabecalho" style={{ gridTemplateColumns: GRID, padding: '9px 18px' }}>
             <span>OS</span>
             <span>Cliente</span>
