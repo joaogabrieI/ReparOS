@@ -16,7 +16,8 @@ class ClienteController extends Controller
     public function index(Request $request): JsonResponse
     {
         $busca = trim((string) $request->query('busca', ''));
-        $digitos = ClienteRequest::normalizarTelefone($busca);
+        // Só compara com o telefone quando a busca parece um telefone: "Moto G84" não deve achar quem tem 84 no número.
+        $digitos = preg_match('/^[\d\s()+.-]+$/', $busca) ? ClienteRequest::normalizarTelefone($busca) : '';
 
         $clientes = $request->user()->clientes()
             ->withCount('equipamentos')

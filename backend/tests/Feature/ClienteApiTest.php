@@ -122,6 +122,9 @@ class ClienteApiTest extends TestCase
         $this->getJson('/api/clientes?busca='.urlencode('2222-3333'))
             ->assertJsonCount(1)
             ->assertJsonPath('0.nome', 'Ana Souza');
+
+        // Texto com letras não é comparado com o telefone.
+        $this->getJson('/api/clientes?busca=moto+g1')->assertJsonCount(0);
     }
 
     public function test_ficha_traz_equipamentos_e_ordens(): void
