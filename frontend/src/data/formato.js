@@ -67,3 +67,9 @@ export function linkWhatsApp(telefone, mensagem) {
   if (numero.length <= 11) numero = `55${numero}`
   return `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`
 }
+
+// Data local no formato aaaa-mm-dd, o mesmo dos campos <input type="date">.
+export function dataIso(iso) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
