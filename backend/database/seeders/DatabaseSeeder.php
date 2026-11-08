@@ -42,7 +42,7 @@ class DatabaseSeeder extends Seeder
         $os->update(['diagnostico' => 'Fonte queimada e cooler sujo.']);
         $os->mudarStatus(StatusOrdemServico::DiagnosticoRealizado);
 
-        $orcamento = $os->orcamento()->create(['prazo_entrega' => now()->addDays(3)]);
+        $orcamento = $os->orcamento()->create(['prazo_dias' => 3]);
         $orcamento->itens()->createMany([
             ['tipo' => TipoItemOrcamento::Peca, 'descricao' => 'Fonte 65W', 'quantidade' => 1, 'valor_unitario' => 120],
             ['tipo' => TipoItemOrcamento::Servico, 'descricao' => 'Limpeza interna', 'quantidade' => 1, 'valor_unitario' => 80],

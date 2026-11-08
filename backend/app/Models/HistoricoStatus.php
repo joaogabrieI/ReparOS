@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\StatusOrdemServico;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use LogicException;
 
 class HistoricoStatus extends Model
 {
@@ -20,6 +21,15 @@ class HistoricoStatus extends Model
         'data_hora',
         'observacao',
     ];
+
+    /**
+     * O histórico é a prova do atendimento (ISO 27002 5.33): depois de gravado, não muda nem some.
+     */
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new LogicException('O histórico da OS não pode ser alterado.'));
+        static::deleting(fn () => throw new LogicException('O histórico da OS não pode ser apagado.'));
+    }
 
     protected function casts(): array
     {

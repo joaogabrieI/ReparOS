@@ -33,6 +33,32 @@ enum StatusOrdemServico: string
     }
 
     /**
+     * Status para onde a OS pode ir a partir deste (RF16). A recusa do orçamento é um desvio
+     * que leva à devolução sem reparo.
+     *
+     * @return list<self>
+     */
+    public function proximos(): array
+    {
+        return match ($this) {
+            self::Aberta => [self::AguardandoDiagnostico],
+            self::AguardandoDiagnostico => [self::DiagnosticoRealizado],
+            self::DiagnosticoRealizado => [self::OrcamentoEnviado],
+            self::OrcamentoEnviado => [self::AguardandoAprovacao, self::EmReparo, self::OrcamentoRecusado],
+            self::AguardandoAprovacao => [self::EmReparo, self::OrcamentoRecusado],
+            self::OrcamentoRecusado => [self::Entregue],
+            self::EmReparo => [self::ProntoParaRetirada],
+            self::ProntoParaRetirada => [self::Entregue],
+            self::Entregue => [],
+        };
+    }
+
+    public function podeIrPara(self $novo): bool
+    {
+        return in_array($novo, $this->proximos(), true);
+    }
+
+    /**
      * @return list<string>
      */
     public static function valores(): array

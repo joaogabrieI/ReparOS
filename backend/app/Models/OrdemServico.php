@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\StatusOrdemServico;
+use App\Exceptions\TransicaoInvalidaException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -62,11 +64,19 @@ class OrdemServico extends Model
 
     /**
      * Troca o status e grava o histórico na mesma transação.
+     * Só aceita o próximo passo do fluxo (RF16); a linha fica travada para dois pedidos
+     * simultâneos não avançarem a mesma etapa duas vezes.
+     *
+     * @throws TransicaoInvalidaException
      */
     public function mudarStatus(StatusOrdemServico $novo, ?string $observacao = null): void
     {
         DB::transaction(function () use ($novo, $observacao) {
-            $anterior = $this->status;
+            $anterior = static::whereKey($this->id)->lockForUpdate()->firstOrFail(['status'])->status;
+
+            if (! $anterior->podeIrPara($novo)) {
+                throw TransicaoInvalidaException::entre($anterior, $novo);
+            }
 
             $this->status = $novo;
             $this->data_status = now();
@@ -81,6 +91,19 @@ class OrdemServico extends Model
         });
     }
 
+    /**
+     * OS dos clientes de um técnico: a OS chega ao técnico pelo equipamento e pelo cliente.
+     */
+    public function scopeDoTecnico(Builder $query, int $tecnicoId): void
+    {
+        $query->whereHas('equipamento.cliente', fn ($query) => $query->where('tecnico_id', $tecnicoId));
+    }
+
+    public function pertenceA(Tecnico $tecnico): bool
+    {
+        return $this->equipamento->cliente->tecnico_id === $tecnico->id;
+    }
+
     public function equipamento(): BelongsTo
     {
         return $this->belongsTo(Equipamento::class);
@@ -93,6 +116,7 @@ class OrdemServico extends Model
 
     public function historico(): HasMany
     {
-        return $this->hasMany(HistoricoStatus::class)->orderBy('data_hora');
+        // Mudanças no mesmo segundo (envio do orçamento) ficam na ordem em que foram gravadas.
+        return $this->hasMany(HistoricoStatus::class)->orderBy('data_hora')->orderBy('id');
     }
 }
