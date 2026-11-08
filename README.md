@@ -59,7 +59,15 @@ cp .env.example .env
 npm run dev
 ```
 
-Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. O login e a tela de **Clientes** (listagem, busca, ficha, cadastro e edição de clientes e de equipamentos) já usam a API. A busca da tela também acha equipamentos por modelo ou número de série. As demais telas ainda mostram dados de exemplo (`src/data/exemplo.js`) e os botões delas apenas levam de uma página para outra. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha`.
+Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. Todas as telas do técnico usam a API:
+
+- **Início**, **OS pendentes** e barra lateral: listagem de OS (`/api/ordens-servico`), com as paradas destacadas pelo campo `parada` da API; a busca e o filtro "só paradas" das pendentes vão para a API.
+- **Buscar OS**: busca (nº da OS, cliente, telefone, marca ou modelo), tipo, status, período, "só paradas" e ordenação, todos aplicados na API.
+- **Abrir OS**: escolhe o cliente (ou cadastra um novo), escolhe ou cadastra o equipamento e abre a OS com o problema e a retirada combinada.
+- **Detalhe da OS**: cada etapa chama a rota dela (retirada, diagnóstico, orçamento com rascunho e envio, resposta do cliente com o canal, reparo com peças trocadas, pronto, entrega ou devolução sem reparo) e mostra o histórico devolvido pela API. O botão **Enviar WhatsApp** abre o link `wa.me` montado por `/whatsapp`; enviar o orçamento salva, registra o envio e abre a mensagem com a validade.
+- **Clientes**: listagem, busca, ficha, cadastro e edição de clientes e de equipamentos.
+
+Os erros de validação (422) aparecem ao lado de cada campo. O cliente acompanha o reparo sem login em `#/acompanhar` (ou `#/acompanhar/<número da OS>`), com link na tela de entrar. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha`.
 
 ## Estrutura
 
@@ -74,11 +82,11 @@ backend/
   database/seeders     Dados de exemplo
   routes/api.php       Rotas da API
 frontend/
-  src/services/        Cliente HTTP para a API (token do login) e chamadas de clientes e equipamentos
-  src/pages/           Telas (login, cadastro, senha, Início, OS pendentes, Buscar OS, Abrir OS, Detalhe da OS, Clientes)
+  src/services/        Cliente HTTP para a API (token do login) e chamadas de clientes, equipamentos e OS
+  src/pages/           Telas (login, cadastro, senha, Início, OS pendentes, Buscar OS, Abrir OS, Detalhe da OS, Clientes, Acompanhar)
   src/components/      Componentes reutilizáveis (barra lateral, diálogos, etiqueta de status)
   src/styles/          Design system Nocturne, copiado do projeto de design
-  src/data/            Status da OS, dados de exemplo e textos do WhatsApp
+  src/data/            Status da OS, dados compartilhados das telas (store), formatação e prévia do orçamento
 ```
 
 ## Modelo de dados
