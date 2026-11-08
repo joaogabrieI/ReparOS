@@ -5,6 +5,7 @@ use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\EquipamentoController;
 use App\Http\Controllers\OrcamentoController;
 use App\Http\Controllers\OrdemServicoController;
+use App\Http\Controllers\ReparoController;
 use App\Http\Controllers\StatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/orcamento', [OrcamentoController::class, 'salvar']);
         Route::post('/orcamento/envio', [OrcamentoController::class, 'enviar']);
         Route::post('/orcamento/resposta', [OrcamentoController::class, 'responder']);
+        Route::put('/reparo', [ReparoController::class, 'reparo']);
+        Route::post('/pronto', [ReparoController::class, 'pronto']);
+        Route::post('/entrega', [ReparoController::class, 'entrega']);
+        Route::get('/historico', [ReparoController::class, 'historico']);
     });
 });
 

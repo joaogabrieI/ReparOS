@@ -14,6 +14,9 @@ class HistoricoStatus extends Model
     // O registro já tem a própria data (data_hora) e nunca é editado.
     public $timestamps = false;
 
+    // Nomes dos status como aparecem na tela, para o frontend não repetir a tradução.
+    protected $appends = ['status_anterior_rotulo', 'status_novo_rotulo'];
+
     protected $fillable = [
         'ordem_servico_id',
         'status_anterior',
@@ -38,6 +41,16 @@ class HistoricoStatus extends Model
             'status_novo' => StatusOrdemServico::class,
             'data_hora' => 'datetime',
         ];
+    }
+
+    public function getStatusAnteriorRotuloAttribute(): ?string
+    {
+        return $this->status_anterior?->rotulo();
+    }
+
+    public function getStatusNovoRotuloAttribute(): string
+    {
+        return $this->status_novo->rotulo();
     }
 
     public function ordemServico(): BelongsTo
