@@ -1,30 +1,49 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { estaParada } from '../data/regras'
+import { detalhar, estaParada } from '../data/regras'
 import { corStatus, DIAS_PARADA, iconeEquipamento, PENDENTES, infoStatus } from '../data/status'
 import { retirada, tempoNaEtapa } from '../data/formato'
+import { listarOrdens } from '../services/ordens'
 
-const GRID = '76px minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.4fr) 150px 190px'
+const GRID = '150px minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.4fr) 150px 190px'
 const PERIGO = 'oklch(0.82 0.12 25)'
 
 // Tela inicial: OS não entregues agrupadas por status, com destaque para as paradas (RF21, RF24).
+// A busca e o filtro de paradas são feitos na API (pendentes, busca e paradas em /api/ordens-servico).
 export default function OsPendentes({ buscaInicial = '' }) {
-  const { ordens } = useDados()
+  const { ordens, carregado, erro: erroDados } = useDados()
   const [busca, setBusca] = useState(buscaInicial)
   const [soParadas, setSoParadas] = useState(false)
+  const [encontradas, setEncontradas] = useState(null)
+  const [erro, setErro] = useState('')
 
   const pendentes = ordens.filter((o) => o.status !== 'entregue')
   const paradas = pendentes.filter(estaParada)
+  const filtrando = Boolean(busca.trim()) || soParadas
 
-  const termo = busca.trim().toLowerCase()
-  const visiveis = pendentes.filter((o) => {
-    if (soParadas && !estaParada(o)) return false
-    if (!termo) return true
-    return [o.numero, o.cliente?.nome, o.equipamento?.modelo, o.equipamento?.marca].some((t) => t?.toLowerCase().includes(termo))
-  })
+  useEffect(() => {
+    if (!busca.trim() && !soParadas) return
+    let ativo = true
+    const espera = setTimeout(() => {
+      listarOrdens({ pendentes: true, busca, paradas: soParadas })
+        .then((lista) => {
+          if (!ativo) return
+          setEncontradas(lista.map(detalhar))
+          setErro('')
+        })
+        .catch((e) => ativo && setErro(e.message))
+    }, 250)
+    return () => {
+      ativo = false
+      clearTimeout(espera)
+    }
+  }, [busca, soParadas])
+
+  // Enquanto a busca não volta, a lista mostra o resultado anterior.
+  const visiveis = filtrando ? (encontradas ?? pendentes) : pendentes
 
   const contagem = PENDENTES.map((status) => ({ status, n: pendentes.filter((o) => o.status === status).length }))
   // A recusa só aparece na faixa quando existir alguma OS nela.
@@ -43,6 +62,7 @@ export default function OsPendentes({ buscaInicial = '' }) {
               className="input"
               style={{ minHeight: 34 }}
               placeholder="Nº da OS, cliente ou equipamento"
+              aria-label="Buscar OS pendentes"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
             />
@@ -99,8 +119,15 @@ export default function OsPendentes({ buscaInicial = '' }) {
             <span style={{ textAlign: 'right' }}>Próxima ação</span>
           </div>
 
-          {grupos.length === 0 && (
-            <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--color-neutral-500)' }}>Nenhuma OS encontrada.</div>
+          {(erro || erroDados) && (
+            <div className="erro-campo" role="alert" style={{ padding: 18, marginTop: 0 }}>
+              {erro || erroDados}
+            </div>
+          )}
+          {grupos.length === 0 && !erro && !erroDados && (
+            <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--color-neutral-500)' }} role="status">
+              {carregado ? 'Nenhuma OS encontrada.' : 'Carregando…'}
+            </div>
           )}
 
           {grupos.map((g) => (
@@ -163,7 +190,7 @@ function LinhaPendente({ ordem: o }) {
         }}
       >
         <i className={`ph ${parada ? 'ph-warning' : aberta ? 'ph-truck' : 'ph-clock'}`} />
-        {aberta ? retirada(o.retirada_agendada) : tempoNaEtapa(o.diasNaEtapa)}
+        {aberta && o.retirada_agendada ? retirada(o.retirada_agendada) : tempoNaEtapa(o.diasNaEtapa)}
       </span>
       <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--color-accent-300)' }}>{infoStatus(o.status).proximaAcao} →</span>
     </button>

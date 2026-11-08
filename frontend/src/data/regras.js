@@ -1,15 +1,13 @@
-import { DIAS_PARADA, FLUXO } from './status'
+import { FLUXO } from './status'
 
-export function diasDesde(iso) {
-  const inicio = new Date(iso)
-  inicio.setHours(0, 0, 0, 0)
-  const hoje = new Date()
-  hoje.setHours(0, 0, 0, 0)
-  return Math.round((hoje - inicio) / 86400000)
+// OS parada: a API já calcula (mais de 3 dias na mesma etapa sem ser entregue, RF24).
+export function estaParada(ordem) {
+  return Boolean(ordem.parada)
 }
 
-export function estaParada(ordem) {
-  return ordem.status !== 'aberta' && ordem.status !== 'entregue' && ordem.diasNaEtapa > DIAS_PARADA
+// Junta o cliente na OS para as telas não precisarem procurar.
+export function detalhar(ordem) {
+  return { ...ordem, cliente: ordem.equipamento?.cliente ?? ordem.cliente, diasNaEtapa: ordem.dias_na_etapa ?? 0 }
 }
 
 export function proximoStatus(status) {
@@ -30,4 +28,22 @@ export function regrasSenha(senha) {
 // Peças trocadas no reparo: começam pelas peças previstas no orçamento.
 export function pecasDoOrcamento(orcamento) {
   return (orcamento?.itens ?? []).filter((i) => i.tipo === 'peca').map((i) => ({ descricao: i.descricao, quantidade: i.quantidade, prevista: true }))
+}
+
+// A API guarda as peças trocadas como texto, uma por linha ("SSD 480GB ×1").
+export function textoPecas(pecas) {
+  return pecas
+    .filter((p) => p.descricao.trim())
+    .map((p) => `${p.descricao.trim()} ×${Number(p.quantidade) || 1}`)
+    .join('\n')
+}
+
+export function lerPecas(texto) {
+  return (texto ?? '')
+    .split('\n')
+    .filter((linha) => linha.trim())
+    .map((linha) => {
+      const m = linha.match(/^(.*) ×(\d+)$/)
+      return m ? { descricao: m[1], quantidade: Number(m[2]) } : { descricao: linha, quantidade: 1 }
+    })
 }

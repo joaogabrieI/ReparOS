@@ -1,11 +1,23 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
-import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, tempoNaEtapa, totalOrcamento } from '../data/formato'
-import { mensagemLembreteAprovacao, mensagemOrcamento, mensagemPronto, mensagemRetirada, mensagemStatus } from '../data/mensagens'
-import { estaParada, pecasDoOrcamento, proximoStatus } from '../data/regras'
+import { data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, telefone, tempoNaEtapa, totalOrcamento } from '../data/formato'
+import { mensagemLembreteAprovacao, mensagemOrcamento } from '../data/mensagens'
+import { detalhar, estaParada, lerPecas, pecasDoOrcamento, proximoStatus, textoPecas } from '../data/regras'
 import { corStatus, FLUXO, iconeEquipamento, infoStatus } from '../data/status'
+import {
+  buscarOrdem,
+  enviarOrcamento,
+  marcarPronto,
+  mensagemWhatsApp,
+  registrarDiagnostico,
+  registrarEntrega,
+  registrarReparo,
+  registrarRetirada,
+  responderOrcamento,
+  salvarOrcamento,
+} from '../services/ordens'
 
 const PERIGO = 'oklch(0.84 0.11 25)'
 
@@ -25,8 +37,68 @@ function agoraIso() {
   return new Date().toISOString()
 }
 
+const CANAIS = [
+  ['whatsapp', 'WhatsApp'],
+  ['telefone', 'Telefone'],
+  ['presencial', 'Presencial'],
+]
+
 function abrirWhatsApp(ordem, mensagem) {
   window.open(linkWhatsApp(ordem.cliente.telefone_whatsapp, mensagem), '_blank', 'noopener')
+}
+
+// Abre a aba antes de chamar a API (depois de um await o navegador bloquearia o pop-up) e então
+// leva a aba para o link wa.me com a mensagem do status atual montada pelo backend (RF18).
+// `antes` roda primeiro, por exemplo para registrar o envio do orçamento.
+async function abrirWhatsAppDaApi(id, antes) {
+  const janela = window.open('', '_blank')
+  try {
+    if (antes) await antes()
+    const { link } = await mensagemWhatsApp(id)
+    if (janela) {
+      janela.opener = null
+      janela.location.href = link
+    } else {
+      window.open(link, '_blank', 'noopener')
+    }
+  } catch (erro) {
+    janela?.close()
+    throw erro
+  }
+}
+
+// Estado de envio e erros (422 por campo ou mensagem geral) de uma ação da OS.
+function useAcao() {
+  const [erros, setErros] = useState({})
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function rodar(acao) {
+    setErros({})
+    setErro('')
+    setEnviando(true)
+    try {
+      await acao()
+    } catch (falha) {
+      if (falha.erros) setErros(falha.erros)
+      else setErro(falha.message)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return { erros, erro, enviando, rodar }
+}
+
+// Primeiro erro de validação ainda não mostrado ao lado de um campo, ou o erro geral.
+function ErroAcao({ acao, campos = [] }) {
+  const resto = Object.entries(acao.erros).find(([campo]) => !campos.includes(campo))
+  const mensagem = resto?.[1]?.[0] ?? acao.erro
+  return mensagem ? (
+    <div role="alert">
+      <ErroCampo erros={[mensagem]} />
+    </div>
+  ) : null
 }
 
 function PillGrande({ status }) {
@@ -151,7 +223,8 @@ function Cabecalho({ titulo, sub, extra }) {
   )
 }
 
-function PainelRetirada({ ordem, concluir, refAcao }) {
+function PainelRetirada({ ordem, endereco, atualizar, refAcao }) {
+  const acao = useAcao()
   return (
     <div className="painel-acao" ref={refAcao} tabIndex={-1}>
       <Cabecalho
@@ -163,25 +236,27 @@ function PainelRetirada({ ordem, concluir, refAcao }) {
         }
       />
       <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--color-neutral-300)' }}>
-        Retirada combinada para {dataHora(ordem.retirada_agendada)} em {ordem.retirada_local || ordem.cliente.endereco}.
+        {ordem.retirada_agendada ? `Retirada combinada para ${dataHora(ordem.retirada_agendada)}` : 'Retirada ainda sem horário combinado'}
+        {endereco ? ` em ${endereco}.` : '.'}
       </div>
+      <ErroAcao acao={acao} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button className="btn btn-secondary" onClick={() => abrirWhatsApp(ordem, mensagemRetirada(ordem))}>
+        <button className="btn btn-secondary" onClick={() => acao.rodar(() => abrirWhatsAppDaApi(ordem.id))}>
           <i className="ph ph-whatsapp-logo" />
           Confirmar horário
         </button>
-        <button className="btn btn-primary" onClick={concluir}>
+        <button className="btn btn-primary" disabled={acao.enviando} onClick={() => acao.rodar(async () => atualizar(await registrarRetirada(ordem.id, {})))}>
           <i className="ph ph-check" />
-          Equipamento retirado
+          {acao.enviando ? 'Registrando…' : 'Equipamento retirado'}
         </button>
       </div>
     </div>
   )
 }
 
-function PainelDiagnostico({ ordem, concluir, refAcao }) {
-  const [causa, setCausa] = useState(ordem.diagnostico)
-  const [servico, setServico] = useState(ordem.servico_necessario)
+function PainelDiagnostico({ ordem, atualizar, refAcao }) {
+  const [diagnostico, setDiagnostico] = useState(ordem.diagnostico ?? '')
+  const acao = useAcao()
   return (
     <div className="painel-acao" ref={refAcao} tabIndex={-1}>
       <Cabecalho
@@ -193,29 +268,27 @@ function PainelDiagnostico({ ordem, concluir, refAcao }) {
         }
       />
       <div className="field">
-        <label htmlFor="d-causa">Causa do defeito *</label>
-        <textarea id="d-causa" className="input" value={causa} onChange={(e) => setCausa(e.target.value)} />
+        <label htmlFor="d-diagnostico">Causa do defeito e o que precisa ser feito *</label>
+        <textarea
+          id="d-diagnostico"
+          className={`input${acao.erros.diagnostico ? ' input-erro' : ''}`}
+          value={diagnostico}
+          onChange={(e) => setDiagnostico(e.target.value)}
+        />
+        <ErroCampo erros={acao.erros.diagnostico} />
       </div>
-      <div className="field">
-        <label htmlFor="d-servico">O que precisa ser feito *</label>
-        <textarea id="d-servico" className="input" value={servico} onChange={(e) => setServico(e.target.value)} />
-      </div>
+      <ErroAcao acao={acao} campos={['diagnostico']} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button
-          className="btn btn-secondary"
-          onClick={() => {
-            setCausa(ordem.diagnostico)
-            setServico(ordem.servico_necessario)
-          }}
-        >
+        <button className="btn btn-secondary" onClick={() => setDiagnostico(ordem.diagnostico ?? '')}>
           Cancelar
         </button>
         <button
           className="btn btn-primary"
-          onClick={concluir}
+          disabled={acao.enviando}
+          onClick={() => acao.rodar(async () => atualizar(await registrarDiagnostico(ordem.id, diagnostico)))}
         >
           <i className="ph ph-check" />
-          Salvar diagnóstico
+          {acao.enviando ? 'Salvando…' : 'Salvar diagnóstico'}
         </button>
       </div>
     </div>
@@ -235,8 +308,10 @@ function prazoAte(dias) {
   return d.toISOString()
 }
 
-function PainelOrcamento({ itens, setItens, prazo, setPrazo, refAcao }) {
+function PainelOrcamento({ itens, setItens, prazo, setPrazo, acao, onSalvar, salvoEm, refAcao }) {
   const total = totalOrcamento({ itens })
+  const { erros } = acao
+  const classe = (i, campo) => `input${erros[`itens.${i}.${campo}`] ? ' input-erro' : ''}`
   const mudar = (i, campo) => (e) => setItens(itens.map((item, k) => (k === i ? { ...item, [campo]: e.target.value } : item)))
   const adicionar = (tipo) => setItens([...itens, { tipo, descricao: '', quantidade: 1, valor_unitario: 0 }])
 
@@ -267,15 +342,15 @@ function PainelOrcamento({ itens, setItens, prazo, setPrazo, refAcao }) {
         <div key={i} className="tabela-linha" style={{ gridTemplateColumns: GRID_ITENS, padding: '8px 18px', borderBottom: '1px solid var(--color-neutral-900)' }}>
           <TagItem tipo={item.tipo} />
           <input
-            className="input"
+            className={classe(i, 'descricao')}
             style={{ minHeight: 32 }}
             placeholder={item.tipo === 'peca' ? 'Ex.: SSD 480GB' : 'Ex.: Limpeza interna'}
             value={item.descricao}
             onChange={mudar(i, 'descricao')}
             aria-label="Descrição"
           />
-          <input className="input" style={{ minHeight: 32 }} type="number" min="1" value={item.quantidade} onChange={mudar(i, 'quantidade')} aria-label="Quantidade" />
-          <input className="input" style={{ minHeight: 32 }} type="number" min="0" step="0.01" value={item.valor_unitario} onChange={mudar(i, 'valor_unitario')} aria-label="Valor unitário" />
+          <input className={classe(i, 'quantidade')} style={{ minHeight: 32 }} type="number" min="1" value={item.quantidade} onChange={mudar(i, 'quantidade')} aria-label="Quantidade" />
+          <input className={classe(i, 'valor_unitario')} style={{ minHeight: 32 }} type="number" min="0" step="0.01" value={item.valor_unitario} onChange={mudar(i, 'valor_unitario')} aria-label="Valor unitário" />
           <span style={{ textAlign: 'right', fontWeight: 500 }}>{moeda(item.quantidade * item.valor_unitario)}</span>
           <button className="btn btn-icon" style={{ width: 24, height: 24, color: 'var(--color-neutral-600)' }} onClick={() => setItens(itens.filter((_, k) => k !== i))} aria-label="Remover item">
             <i className="ph ph-x" />
@@ -286,16 +361,34 @@ function PainelOrcamento({ itens, setItens, prazo, setPrazo, refAcao }) {
         <div className="field" style={{ width: 240 }}>
           <label htmlFor="o-prazo">Prazo de entrega *</label>
           <div style={{ position: 'relative' }}>
-            <input id="o-prazo" className="input" type="number" min="1" value={prazo} onChange={(e) => setPrazo(e.target.value)} style={{ paddingRight: 130 }} />
+            <input
+              id="o-prazo"
+              className={`input${erros.prazo_dias ? ' input-erro' : ''}`}
+              type="number"
+              min="1"
+              value={prazo}
+              onChange={(e) => setPrazo(e.target.value)}
+              style={{ paddingRight: 130 }}
+            />
             <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--color-neutral-500)' }}>
               dias úteis{Number(prazo) > 0 && ` · até ${data(prazoAte(Number(prazo))).slice(0, 5)}`}
             </span>
           </div>
+          <ErroCampo erros={erros.prazo_dias} />
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
           <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>Valor total calculado</div>
           <div style={{ fontSize: 28, fontWeight: 500 }}>{moeda(total)}</div>
         </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 18px 14px' }}>
+        <div style={{ flex: 1 }}>
+          <ErroAcao acao={acao} campos={['prazo_dias']} />
+        </div>
+        {salvoEm && <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>Rascunho salvo às {hora(salvoEm)}</span>}
+        <button className="btn btn-secondary" disabled={acao.enviando} onClick={onSalvar}>
+          Salvar rascunho
+        </button>
       </div>
     </div>
   )
@@ -322,7 +415,8 @@ function PainelResposta({ ordem, onResponder, refAcao }) {
       ))}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTop: '1px solid var(--color-neutral-800)' }}>
         <span style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
-          Prazo: {orcamento.prazo_entrega} {orcamento.prazo_entrega === 1 ? 'dia útil' : 'dias úteis'} após aprovação
+          Prazo: {orcamento.prazo_dias} {orcamento.prazo_dias === 1 ? 'dia útil' : 'dias úteis'} após aprovação
+          {orcamento.validade_ate && ` · ${orcamento.vencido ? 'venceu em' : 'válido até'} ${data(`${orcamento.validade_ate.slice(0, 10)}T12:00`)}`}
         </span>
         <span style={{ fontSize: 22, fontWeight: 500 }}>{moeda(totalOrcamento(orcamento))}</span>
       </div>
@@ -346,21 +440,34 @@ function PainelResposta({ ordem, onResponder, refAcao }) {
   )
 }
 
-function PainelReparo({ ordem, concluir, refAcao }) {
-  const [servico, setServico] = useState(ordem.servico_executado)
-  const [pecas, setPecas] = useState(() =>
-    (ordem.pecas_trocadas.length ? ordem.pecas_trocadas : pecasDoOrcamento(ordem.orcamento)).map((p) => ({ trocada: true, ...p })),
-  )
+function PainelReparo({ ordem, atualizar, refAcao }) {
+  const [servico, setServico] = useState(ordem.servico_executado ?? '')
+  const [pecas, setPecas] = useState(() => {
+    const previstas = pecasDoOrcamento(ordem.orcamento)
+    if (!ordem.pecas_trocadas) return previstas.map((p) => ({ ...p, trocada: true }))
+    // Rascunho já salvo: marca as trocadas e mantém as previstas que ficaram de fora.
+    const salvas = lerPecas(ordem.pecas_trocadas).map((p) => ({ ...p, prevista: previstas.some((x) => x.descricao === p.descricao), trocada: true }))
+    const restantes = previstas.filter((p) => !salvas.some((x) => x.descricao === p.descricao)).map((p) => ({ ...p, trocada: false }))
+    return [...salvas, ...restantes]
+  })
+  const acao = useAcao()
   const aprovadoEm = ordem.orcamento?.data_resposta
 
   const mudar = (i, campo, valor) => setPecas(pecas.map((p, k) => (k === i ? { ...p, [campo]: valor } : p)))
+  const salvar = () => registrarReparo(ordem.id, { servico_executado: servico, pecas_trocadas: textoPecas(pecas.filter((p) => p.trocada)) || null })
 
   return (
     <div className="painel-acao" ref={refAcao} tabIndex={-1}>
       <Cabecalho titulo="Registrar reparo" sub={`Serviço executado e peças trocadas${aprovadoEm ? ` · aprovado pelo cliente em ${data(aprovadoEm)}` : ''}`} />
       <div className="field">
         <label htmlFor="r-servico">Serviço executado *</label>
-        <textarea id="r-servico" className="input" value={servico} onChange={(e) => setServico(e.target.value)} />
+        <textarea
+          id="r-servico"
+          className={`input${acao.erros.servico_executado ? ' input-erro' : ''}`}
+          value={servico}
+          onChange={(e) => setServico(e.target.value)}
+        />
+        <ErroCampo erros={acao.erros.servico_executado} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-neutral-400)' }}>
@@ -384,7 +491,14 @@ function PainelReparo({ ordem, concluir, refAcao }) {
             {p.prevista ? (
               <span style={{ flex: 1 }}>{p.descricao}</span>
             ) : (
-              <input className="input" style={{ flex: 1, minHeight: 30 }} placeholder="Descrição da peça" value={p.descricao} onChange={(e) => mudar(i, 'descricao', e.target.value)} />
+              <input
+                className="input"
+                style={{ flex: 1, minHeight: 30 }}
+                placeholder="Descrição da peça"
+                aria-label="Descrição da peça"
+                value={p.descricao}
+                onChange={(e) => mudar(i, 'descricao', e.target.value)}
+              />
             )}
             <span style={{ color: 'var(--color-neutral-500)', fontSize: 12.5 }}>{p.prevista ? 'previsto no orçamento' : 'não prevista'}</span>
             <input
@@ -399,14 +513,25 @@ function PainelReparo({ ordem, concluir, refAcao }) {
             <span style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>un.</span>
           </div>
         ))}
+        <ErroCampo erros={acao.erros.pecas_trocadas} />
       </div>
+      <ErroAcao acao={acao} campos={['servico_executado', 'pecas_trocadas']} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button className="btn btn-secondary" onClick={concluir}>
+        <button className="btn btn-secondary" disabled={acao.enviando} onClick={() => acao.rodar(async () => atualizar(await salvar()))}>
           Salvar rascunho
         </button>
-        <button className="btn btn-primary" onClick={concluir}>
+        <button
+          className="btn btn-primary"
+          disabled={acao.enviando}
+          onClick={() =>
+            acao.rodar(async () => {
+              atualizar(await salvar())
+              atualizar(await marcarPronto(ordem.id))
+            })
+          }
+        >
           <i className="ph ph-check-circle" />
-          Salvar e marcar como pronto
+          {acao.enviando ? 'Salvando…' : 'Salvar e marcar como pronto'}
         </button>
       </div>
     </div>
@@ -415,6 +540,7 @@ function PainelReparo({ ordem, concluir, refAcao }) {
 
 function PainelConcluido({ ordem, refAcao }) {
   const entregue = ordem.status === 'entregue'
+  const pecas = lerPecas(ordem.pecas_trocadas)
   if (ordem.status === 'orcamento_recusado') {
     return (
       <div className="painel-acao" ref={refAcao} tabIndex={-1}>
@@ -429,9 +555,9 @@ function PainelConcluido({ ordem, refAcao }) {
     <div className="painel-acao" ref={refAcao} tabIndex={-1} style={entregue ? { borderColor: 'var(--color-neutral-800)', boxShadow: 'none' } : undefined}>
       <div className="painel-titulo">{entregue ? 'OS entregue' : 'Reparo concluído'}</div>
       <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-neutral-300)' }}>{ordem.servico_executado || 'Sem reparo: orçamento recusado.'}</div>
-      {ordem.pecas_trocadas.length > 0 && (
+      {pecas.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {ordem.pecas_trocadas.map((p, i) => (
+          {pecas.map((p, i) => (
             <span key={i} className="tag tag-neutral">
               {p.descricao} ×{p.quantidade}
             </span>
@@ -441,7 +567,7 @@ function PainelConcluido({ ordem, refAcao }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTop: '1px solid var(--color-neutral-800)' }}>
         <span style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
           {entregue
-            ? `Entregue em ${dataHora(ordem.data_entrega)}${ordem.recebido_por ? ` · recebido por ${ordem.recebido_por}` : ''}`
+            ? `Entregue em ${dataHora(ordem.data_entrega)}`
             : `Pronto desde ${diaMesHora(ordem.data_status).replace(' ', ' às ')}`}
         </span>
         {ordem.orcamento && <span style={{ fontSize: 22, fontWeight: 500 }}>{moeda(totalOrcamento(ordem.orcamento))}</span>}
@@ -463,20 +589,29 @@ function CabecalhoDialogo({ id, titulo, onFechar }) {
   )
 }
 
-function DialogoResposta({ ordem, situacaoInicial, onFechar, concluir }) {
+function DialogoResposta({ ordem, situacaoInicial, onFechar, atualizar }) {
   const [situacao, setSituacao] = useState(situacaoInicial)
-  const [dia, setDia] = useState(() => dataIso(agoraIso()))
+  const [canal, setCanal] = useState('whatsapp')
   const [observacao, setObservacao] = useState('')
+  const acao = useAcao()
   const aprovado = situacao === 'aprovado'
 
+  function confirmar() {
+    acao.rodar(async () => {
+      atualizar(await responderOrcamento(ordem.id, { aprovado, canal, observacao: observacao.trim() || null }))
+      onFechar()
+    })
+  }
 
   return (
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 460 }} role="dialog" aria-labelledby="dr-titulo">
+      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="dr-titulo">
         <CabecalhoDialogo id="dr-titulo" titulo="Registrar resposta do orçamento" onFechar={onFechar} />
         <div className="field">
-          <label>Resposta do cliente</label>
-          <div className="seg" style={{ display: 'flex' }}>
+          <span id="dr-resposta" style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>
+            Resposta do cliente
+          </span>
+          <div className="seg" style={{ display: 'flex' }} role="radiogroup" aria-labelledby="dr-resposta">
             {[
               ['aprovado', 'ph-check', 'Aprovado'],
               ['recusado', 'ph-x', 'Recusado'],
@@ -491,11 +626,18 @@ function DialogoResposta({ ordem, situacaoInicial, onFechar, concluir }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="field">
-            <label htmlFor="dr-dia">Data da resposta *</label>
-            <input id="dr-dia" type="date" className="input" value={dia} onChange={(e) => setDia(e.target.value)} />
+            <label htmlFor="dr-canal">Respondeu por *</label>
+            <select id="dr-canal" className={`input${acao.erros.canal ? ' input-erro' : ''}`} value={canal} onChange={(e) => setCanal(e.target.value)}>
+              {CANAIS.map(([valor, rotulo]) => (
+                <option key={valor} value={valor}>
+                  {rotulo}
+                </option>
+              ))}
+            </select>
+            <ErroCampo erros={acao.erros.canal} />
           </div>
           <div className="field">
-            <label>Valor {aprovado ? 'aprovado' : 'recusado'}</label>
+            <span style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>Valor {aprovado ? 'aprovado' : 'recusado'}</span>
             <div className="input" style={{ display: 'flex', alignItems: 'center', color: 'var(--color-neutral-400)' }}>
               {moeda(totalOrcamento(ordem.orcamento))}
             </div>
@@ -503,19 +645,28 @@ function DialogoResposta({ ordem, situacaoInicial, onFechar, concluir }) {
         </div>
         <div className="field">
           <label htmlFor="dr-obs">Observação</label>
-          <input id="dr-obs" className="input" placeholder="Ex.: aprovou por mensagem às 10:20" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+          <input
+            id="dr-obs"
+            className={`input${acao.erros.observacao ? ' input-erro' : ''}`}
+            placeholder="Ex.: aprovou por mensagem às 10:20"
+            value={observacao}
+            onChange={(e) => setObservacao(e.target.value)}
+          />
+          <ErroCampo erros={acao.erros.observacao} />
         </div>
         <div className="nota" style={{ alignItems: 'center' }}>
           <i className="ph ph-arrow-right" style={{ color: 'var(--color-accent-300)' }} />
           <span>
-            Status passa de {infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{aprovado ? 'Em reparo' : 'Orçamento recusado'}</b>
+            Status passa de {infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{aprovado ? 'Em reparo' : 'Orçamento recusado'}</b>. A data da
+            resposta é registrada agora.
           </span>
         </div>
+        <ErroAcao acao={acao} campos={['canal', 'observacao']} />
         <div className="dialog-actions">
           <button className="btn btn-secondary" onClick={onFechar}>
             Cancelar
           </button>
-          <button className={`btn ${aprovado ? 'btn-primary' : 'btn-secondary btn-perigo'}`} onClick={concluir}>
+          <button className={`btn ${aprovado ? 'btn-primary' : 'btn-secondary btn-perigo'}`} disabled={acao.enviando} onClick={confirmar}>
             <i className={`ph ${aprovado ? 'ph-check' : 'ph-x'}`} />
             {aprovado ? 'Confirmar aprovação' : 'Confirmar recusa'}
           </button>
@@ -525,32 +676,48 @@ function DialogoResposta({ ordem, situacaoInicial, onFechar, concluir }) {
   )
 }
 
-function DialogoEntrega({ ordem, onFechar, concluir }) {
+function DialogoEntrega({ ordem, onFechar, atualizar }) {
   const [dia, setDia] = useState(() => dataIso(agoraIso()))
   const [horario, setHorario] = useState(() => hora(agoraIso()))
   const [recebidoPor, setRecebidoPor] = useState(`${ordem.cliente.nome} (cliente)`)
+  const acao = useAcao()
+  const semReparo = ordem.status === 'orcamento_recusado'
 
+  function confirmar() {
+    acao.rodar(async () => {
+      const quem = recebidoPor.trim()
+      atualizar(
+        await registrarEntrega(ordem.id, {
+          data_entrega: dia && horario ? new Date(`${dia}T${horario}`).toISOString() : null,
+          observacao: quem ? `${semReparo ? 'Devolvido sem reparo' : 'Equipamento entregue'} · recebido por ${quem}` : null,
+        }),
+      )
+      onFechar()
+    })
+  }
 
   return (
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 460 }} role="dialog" aria-labelledby="de-titulo">
+      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="de-titulo">
         <CabecalhoDialogo id="de-titulo" titulo="Registrar entrega" onFechar={onFechar} />
         <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
-          {ordem.equipamento.modelo} · OS {ordem.numero} · {ordem.cliente.nome}
+          {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="field">
             <label htmlFor="de-dia">Data da entrega *</label>
-            <input id="de-dia" type="date" className="input" value={dia} onChange={(e) => setDia(e.target.value)} />
+            <input id="de-dia" type="date" className={`input${acao.erros.data_entrega ? ' input-erro' : ''}`} value={dia} onChange={(e) => setDia(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="de-hora">Horário *</label>
-            <input id="de-hora" type="time" className="input" value={horario} onChange={(e) => setHorario(e.target.value)} />
+            <input id="de-hora" type="time" className={`input${acao.erros.data_entrega ? ' input-erro' : ''}`} value={horario} onChange={(e) => setHorario(e.target.value)} />
           </div>
         </div>
+        <ErroCampo erros={acao.erros.data_entrega} />
         <div className="field">
           <label htmlFor="de-recebido">Recebido por</label>
           <input id="de-recebido" className="input" value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} />
+          <ErroCampo erros={acao.erros.observacao} />
         </div>
         <div className="nota">
           <i className="ph ph-lock-simple" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
@@ -558,11 +725,12 @@ function DialogoEntrega({ ordem, onFechar, concluir }) {
             O status muda para <b style={{ fontWeight: 500 }}>Entregue</b> e a OS é encerrada. Depois disso ela só pode ser consultada.
           </span>
         </div>
+        <ErroAcao acao={acao} campos={['data_entrega', 'observacao']} />
         <div className="dialog-actions">
           <button className="btn btn-secondary" onClick={onFechar}>
             Cancelar
           </button>
-          <button className="btn btn-primary" onClick={concluir}>
+          <button className="btn btn-primary" disabled={acao.enviando} onClick={confirmar}>
             <i className="ph ph-handshake" />
             Confirmar entrega
           </button>
@@ -596,17 +764,14 @@ function resumos(ordem) {
     titulo: 'Retirada do equipamento',
     icone: 'ph-truck',
     linhas: [
-      ['Combinada', dataHora(ordem.retirada_agendada).replace(' ', ' às ')],
+      ['Combinada', ordem.retirada_agendada ? dataHora(ordem.retirada_agendada).replace(' ', ' às ') : 'sem horário'],
       ['Realizada', ordem.data_retirada ? dataHora(ordem.data_retirada).replace(' ', ' às ') : 'ainda não'],
     ],
   }
   const diagnostico = {
     titulo: 'Diagnóstico',
     icone: 'ph-stethoscope',
-    linhas: [
-      ['Causa do defeito', ordem.diagnostico || '—'],
-      ['O que precisa ser feito', ordem.servico_necessario || '—'],
-    ],
+    linhas: [['Causa e o que precisa ser feito', ordem.diagnostico || '—']],
   }
   const mapa = {
     aberta: [problema, retirada],
@@ -622,16 +787,17 @@ function resumos(ordem) {
   return mapa[ordem.status]
 }
 
+// Texto usado quando a mudança de status não tem observação gravada.
 const DESCRICAO_HISTORICO = {
-  aberta: (o) => `OS aberta · retirada combinada para ${diaMesHora(o.retirada_agendada).replace(' ', ' às ')}`,
-  aguardando_diagnostico: () => 'Equipamento retirado no endereço do cliente',
-  diagnostico_realizado: () => 'Causa e serviço necessário registrados',
-  orcamento_enviado: () => 'Mensagem de orçamento aberta no WhatsApp',
-  aguardando_aprovacao: () => 'Aguardando resposta do cliente',
-  em_reparo: (o) => `Aprovação registrada${o.orcamento?.data_resposta ? ` · resposta em ${data(o.orcamento.data_resposta).slice(0, 5)}` : ''}`,
-  orcamento_recusado: (o) => `Recusa registrada${o.orcamento?.data_resposta ? ` · resposta em ${data(o.orcamento.data_resposta).slice(0, 5)}` : ''}`,
-  pronto_para_retirada: () => 'Serviço executado e peças trocadas registrados',
-  entregue: (o) => `OS encerrada${o.recebido_por ? ` · recebido por ${o.recebido_por}` : ''}`,
+  aberta: 'OS aberta',
+  aguardando_diagnostico: 'Equipamento retirado',
+  diagnostico_realizado: 'Diagnóstico registrado',
+  orcamento_enviado: 'Orçamento enviado pelo WhatsApp',
+  aguardando_aprovacao: 'Aguardando resposta do cliente',
+  em_reparo: 'Aprovação registrada',
+  orcamento_recusado: 'Recusa registrada',
+  pronto_para_retirada: 'Reparo concluído',
+  entregue: 'OS encerrada',
 }
 
 // Histórico automático das mudanças de status (RF22, RF25).
@@ -663,11 +829,10 @@ function Historico({ ordem }) {
             </div>
             <div style={{ flex: 1, paddingBottom: 12, fontSize: 13, lineHeight: 1.4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontWeight: 500 }}>{infoStatus(h.status_novo).rotulo}</span>
+                <span style={{ fontWeight: 500 }}>{h.status_novo_rotulo ?? infoStatus(h.status_novo).rotulo}</span>
                 <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{diaMesHora(h.data_hora)}</span>
               </div>
-              <div style={{ color: 'var(--color-neutral-500)' }}>{DESCRICAO_HISTORICO[h.status_novo](ordem)}</div>
-              {h.observacao && <div style={{ color: 'var(--color-neutral-400)', fontStyle: 'italic' }}>“{h.observacao}”</div>}
+              <div style={{ color: 'var(--color-neutral-500)' }}>{h.observacao || DESCRICAO_HISTORICO[h.status_novo]}</div>
             </div>
           </div>
         )
@@ -676,7 +841,7 @@ function Historico({ ordem }) {
   )
 }
 
-function CartaoMensagem({ titulo, texto, nota, onEnviar }) {
+function CartaoMensagem({ titulo, texto, nota, onEnviar, erro, enviando }) {
   return (
     <div className="painel painel-pad" style={{ gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -697,38 +862,88 @@ function CartaoMensagem({ titulo, texto, nota, onEnviar }) {
       >
         {texto}
       </div>
-      <button className="btn btn-primary btn-block" style={{ marginTop: 0 }} onClick={onEnviar ?? undefined} disabled={!onEnviar}>
+      {erro && (
+        <div role="alert">
+          <ErroCampo erros={[erro]} />
+        </div>
+      )}
+      <button className="btn btn-primary btn-block" style={{ marginTop: 0 }} onClick={onEnviar ?? undefined} disabled={!onEnviar || enviando}>
         <i className="ph ph-whatsapp-logo" />
-        Enviar WhatsApp
+        {enviando ? 'Enviando…' : 'Enviar WhatsApp'}
       </button>
       <div style={{ fontSize: 11.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>{nota}</div>
     </div>
   )
 }
 
-// Detalhe da OS com a ação da etapa atual (RF09 a RF20, RF22, RF24, RF25).
+// Detalhe da OS com a ação da etapa atual (RF09 a RF20, RF22, RF24, RF25). Cada ação chama a etapa
+// correspondente da API, que avança o status e grava o histórico; a tela mostra a OS devolvida.
 export default function DetalheOs({ id }) {
-  const { ordens } = useDados()
-  // Sem backend por enquanto: as ações só voltam para a lista de OS pendentes.
-  const concluir = () => navegar('/pendentes')
-  const ordem = ordens.find((o) => o.id === id)
+  const { clientes, recarregar } = useDados()
+  const [ordem, setOrdem] = useState(null)
+  const [erroCarga, setErroCarga] = useState('')
   const refAcao = useRef(null)
   const [dialogo, setDialogo] = useState(null)
   // O orçamento em edição fica aqui porque a mensagem na coluna da direita depende dele.
-  const [itens, setItens] = useState(() => ordem?.orcamento?.itens ?? [])
-  const [prazo, setPrazo] = useState(() => ordem?.orcamento?.prazo_entrega ?? 2)
+  const [itens, setItens] = useState([])
+  const [prazo, setPrazo] = useState(2)
+  const [orcamentoSalvoEm, setOrcamentoSalvoEm] = useState(null)
+  const acaoOrcamento = useAcao()
+  const acaoWhatsApp = useAcao()
+  // Mensagem do status atual montada pela API (pronto para retirada ou devolução sem reparo).
+  const [mensagemApi, setMensagemApi] = useState(null)
+
+  useEffect(() => {
+    let ativo = true
+    buscarOrdem(id)
+      .then((os) => {
+        if (!ativo) return
+        setOrdem(detalhar(os))
+        setItens(os.orcamento?.itens ?? [])
+        setPrazo(os.orcamento?.prazo_dias ?? 2)
+      })
+      .catch((e) => ativo && setErroCarga(e.status === 404 ? 'OS não encontrada.' : e.message))
+    return () => {
+      ativo = false
+    }
+  }, [id])
+
+  const status = ordem?.status
+  useEffect(() => {
+    if (!['pronto_para_retirada', 'orcamento_recusado'].includes(status)) return
+    let ativo = true
+    mensagemWhatsApp(id)
+      .then((m) => ativo && setMensagemApi(m))
+      .catch(() => ativo && setMensagemApi(null))
+    return () => {
+      ativo = false
+    }
+  }, [id, status])
+
+  // As etapas devolvem a OS sem o cliente completo: mantém o equipamento e o cliente já carregados.
+  function atualizar(nova) {
+    setOrdem((atual) => detalhar({ ...atual, ...nova, equipamento: atual.equipamento }))
+    recarregar()
+  }
 
   if (!ordem) {
     return (
       <Layout ativo="os" trilha="OS">
-        <div style={{ padding: 28, color: 'var(--color-neutral-400)' }}>
-          OS não encontrada. <a href="#/os">Voltar para a busca</a>
+        <div style={{ padding: 28, color: 'var(--color-neutral-400)' }} role={erroCarga ? 'alert' : 'status'}>
+          {erroCarga ? (
+            <>
+              {erroCarga} <a href="#/os">Voltar para a busca</a>
+            </>
+          ) : (
+            'Carregando OS…'
+          )}
         </div>
       </Layout>
     )
   }
 
-  const { cliente, equipamento, status } = ordem
+  const { cliente, equipamento } = ordem
+  const endereco = clientes.find((c) => c.id === cliente.id)?.endereco
   const entregue = status === 'entregue'
   const proximo = PROXIMO[status]
   const waNumero = `55${cliente.telefone_whatsapp.replace(/\D/g, '')}`
@@ -740,17 +955,53 @@ export default function DetalheOs({ id }) {
     refAcao.current?.focus({ preventScroll: true })
   }
 
+  const dadosOrcamento = () => ({
+    prazo_dias: Number(prazo),
+    itens: itens.map((i) => ({ tipo: i.tipo, descricao: i.descricao, quantidade: Number(i.quantidade), valor_unitario: Number(i.valor_unitario) })),
+  })
+
+  function salvarRascunhoOrcamento() {
+    acaoOrcamento.rodar(async () => {
+      const orcamento = await salvarOrcamento(id, dadosOrcamento())
+      setOrdem((atual) => ({ ...atual, orcamento }))
+      setOrcamentoSalvoEm(new Date().toISOString())
+    })
+  }
+
+  // Salva o orçamento, registra o envio (Orçamento enviado → Aguardando aprovação) e abre o WhatsApp
+  // com a mensagem da API, que já traz a validade.
+  function enviarOrcamentoWhatsApp() {
+    acaoOrcamento.rodar(() =>
+      abrirWhatsAppDaApi(id, async () => {
+        await salvarOrcamento(id, dadosOrcamento())
+        atualizar(await enviarOrcamento(id))
+      }),
+    )
+  }
+
   const rascunho = {
     itens: itens.filter((i) => i.descricao.trim()).map((i) => ({ ...i, quantidade: Number(i.quantidade), valor_unitario: Number(i.valor_unitario) })),
-    prazo_entrega: Number(prazo),
+    prazo_dias: Number(prazo),
   }
-  const rascunhoValido = rascunho.itens.length > 0 && totalOrcamento(rascunho) > 0 && rascunho.prazo_entrega > 0
+  const rascunhoValido = rascunho.itens.length > 0 && totalOrcamento(rascunho) > 0 && rascunho.prazo_dias > 0
 
-  const props = { ordem, concluir, refAcao }
+  const props = { ordem, atualizar, refAcao }
   let painel
-  if (status === 'aberta') painel = <PainelRetirada {...props} />
+  if (status === 'aberta') painel = <PainelRetirada {...props} endereco={endereco} />
   else if (status === 'aguardando_diagnostico') painel = <PainelDiagnostico {...props} />
-  else if (status === 'diagnostico_realizado') painel = <PainelOrcamento itens={itens} setItens={setItens} prazo={prazo} setPrazo={setPrazo} refAcao={refAcao} />
+  else if (status === 'diagnostico_realizado')
+    painel = (
+      <PainelOrcamento
+        itens={itens}
+        setItens={setItens}
+        prazo={prazo}
+        setPrazo={setPrazo}
+        acao={acaoOrcamento}
+        onSalvar={salvarRascunhoOrcamento}
+        salvoEm={orcamentoSalvoEm}
+        refAcao={refAcao}
+      />
+    )
   else if (status === 'orcamento_enviado' || status === 'aguardando_aprovacao')
     painel = <PainelResposta ordem={ordem} refAcao={refAcao} onResponder={(situacao) => setDialogo({ tipo: 'resposta', situacao })} />
   else if (status === 'em_reparo') painel = <PainelReparo {...props} />
@@ -762,27 +1013,26 @@ export default function DetalheOs({ id }) {
       <CartaoMensagem
         titulo="Mensagem do orçamento"
         texto={rascunhoValido ? mensagemOrcamento(ordem, rascunho) : 'Adicione os itens e o prazo para gerar a mensagem.'}
-        nota={`Abre wa.me/${waNumero} com o texto preenchido. Ao enviar, o status vai para Orçamento enviado e em seguida Aguardando aprovação.`}
-        onEnviar={() => abrirWhatsApp(ordem, mensagemOrcamento(ordem, rascunho))}
+        nota={`Abre wa.me/${waNumero} com o texto preenchido. Ao enviar, o orçamento é salvo e travado, e o status vai para Orçamento enviado e em seguida Aguardando aprovação.`}
+        onEnviar={rascunhoValido ? enviarOrcamentoWhatsApp : null}
+        enviando={acaoOrcamento.enviando}
       />
     )
-  } else if (status === 'pronto_para_retirada') {
+  } else if (mensagemApi && ['pronto_para_retirada', 'orcamento_recusado'].includes(status)) {
     mensagem = (
       <CartaoMensagem
-        titulo="Aviso de pronto para retirada"
-        texto={mensagemPronto(ordem)}
-        nota={
-          ordem.aviso_pronto_em
-            ? `Enviado em ${diaMesHora(ordem.aviso_pronto_em).replace(' ', ' às ')} · reenvie se o cliente não responder.`
-            : `Abre wa.me/${waNumero} com o texto preenchido.`
-        }
-        onEnviar={() => abrirWhatsApp(ordem, mensagemPronto(ordem))}
+        titulo={status === 'pronto_para_retirada' ? 'Aviso de pronto para retirada' : 'Aviso de devolução sem reparo'}
+        texto={mensagemApi.mensagem}
+        nota={`Abre wa.me/${mensagemApi.telefone} com o texto preenchido. Reenvie se o cliente não responder.`}
+        onEnviar={() => acaoWhatsApp.rodar(() => abrirWhatsAppDaApi(id))}
+        erro={acaoWhatsApp.erro}
+        enviando={acaoWhatsApp.enviando}
       />
     )
   }
 
   const subtitulo = [
-    `OS ${ordem.numero}`,
+    ordem.numero,
     `aberta em ${dataHora(ordem.data_abertura)}`,
     equipamento.numero_serie && `nº de série ${equipamento.numero_serie}`,
     cliente.nome.split(' ')[0],
@@ -802,7 +1052,7 @@ export default function DetalheOs({ id }) {
             <a href={entregue ? '#/os' : '#/pendentes'} style={{ color: 'inherit' }}>
               {entregue ? 'Buscar OS' : 'OS pendentes'}
             </a>{' '}
-            / <span style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>OS {ordem.numero}</span>
+            / <span style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>{ordem.numero}</span>
           </span>
         </span>
       }
@@ -839,7 +1089,7 @@ export default function DetalheOs({ id }) {
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>{subtitulo}</div>
           </div>
-          <button className="btn btn-secondary" onClick={() => abrirWhatsApp(ordem, mensagemStatus(ordem))}>
+          <button className="btn btn-secondary" disabled={acaoWhatsApp.enviando} onClick={() => acaoWhatsApp.rodar(() => abrirWhatsAppDaApi(id))}>
             <i className="ph ph-whatsapp-logo" />
             Enviar WhatsApp
           </button>
@@ -850,6 +1100,12 @@ export default function DetalheOs({ id }) {
             </button>
           )}
         </div>
+
+        {acaoWhatsApp.erro && !mensagem && (
+          <div role="alert">
+            <ErroCampo erros={[acaoWhatsApp.erro]} />
+          </div>
+        )}
 
         <Etapas ordem={ordem} />
 
@@ -871,7 +1127,7 @@ export default function DetalheOs({ id }) {
                 </span>
                 <div style={{ flex: 1, lineHeight: 1.35 }}>
                   <div style={{ fontWeight: 500 }}>{cliente.nome}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>WhatsApp {cliente.telefone_whatsapp}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>WhatsApp {telefone(cliente.telefone_whatsapp)}</div>
                 </div>
                 <a href={`#/clientes/${cliente.id}`} style={{ fontSize: 12.5 }}>
                   Ver ficha
@@ -879,7 +1135,7 @@ export default function DetalheOs({ id }) {
               </div>
               <div style={{ display: 'flex', gap: 8, fontSize: 12.5, color: 'var(--color-neutral-400)' }}>
                 <i className="ph ph-map-pin" style={{ marginTop: 2 }} />
-                {cliente.endereco}
+                {endereco ?? '—'}
               </div>
             </div>
             {mensagem}
@@ -889,9 +1145,9 @@ export default function DetalheOs({ id }) {
       </div>
 
       {dialogo?.tipo === 'resposta' && (
-        <DialogoResposta ordem={ordem} situacaoInicial={dialogo.situacao} onFechar={() => setDialogo(null)} concluir={concluir} />
+        <DialogoResposta ordem={ordem} situacaoInicial={dialogo.situacao} onFechar={() => setDialogo(null)} atualizar={atualizar} />
       )}
-      {dialogo?.tipo === 'entrega' && <DialogoEntrega ordem={ordem} onFechar={() => setDialogo(null)} concluir={concluir} />}
+      {dialogo?.tipo === 'entrega' && <DialogoEntrega ordem={ordem} onFechar={() => setDialogo(null)} atualizar={atualizar} />}
     </Layout>
   )
 }

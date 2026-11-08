@@ -3,7 +3,6 @@ import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { tecnico } from '../data/exemplo'
 import { diaMes, hora, tempoNaEtapa } from '../data/formato'
 import { estaParada } from '../data/regras'
 import { corStatus, DIAS_PARADA, iconeEquipamento, infoStatus, PENDENTES } from '../data/status'
@@ -63,8 +62,9 @@ function Indicador({ rotulo, valor, detalhe, icone, matiz, destaque }) {
 }
 
 // Tela inicial: o que precisa de ação, retiradas, pendentes por status e atividade recente (RF08, RF21, RF22, RF24).
+// Tudo vem da listagem de OS da API; a retirada usa o endereço do cadastro do cliente.
 export default function Inicio() {
-  const { ordens } = useDados()
+  const { ordens, clientes, tecnico } = useDados()
   const [agora] = useState(() => new Date())
   const [busca, setBusca] = useState('')
 
@@ -77,7 +77,7 @@ export default function Inicio() {
   const amanha = new Date(agora)
   amanha.setDate(amanha.getDate() + 1)
   const retiradas = pendentes
-    .filter((o) => o.status === 'aberta')
+    .filter((o) => o.status === 'aberta' && o.retirada_agendada)
     .filter((o) => {
       const d = new Date(o.retirada_agendada)
       return mesmoDia(d, agora) || mesmoDia(d, amanha)
@@ -102,8 +102,9 @@ export default function Inicio() {
 
   const distribuicao = PENDENTES.map((status) => ({ status, n: pendentes.filter((o) => o.status === status).length })).filter((d) => d.n > 0)
 
+  // Última mudança de status de cada OS.
   const atividade = ordens
-    .flatMap((o) => o.historico.map((h) => ({ ...h, ordem: o })))
+    .map((o) => ({ status_novo: o.status, data_hora: o.data_status, ordem: o }))
     .sort((a, b) => b.data_hora.localeCompare(a.data_hora))
     .slice(0, 6)
 
@@ -137,7 +138,8 @@ export default function Inicio() {
       <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <div className="pagina-titulo">
-            {saudacao(agora)}, {tecnico.nome.split(' ')[0]}
+            {saudacao(agora)}
+            {tecnico && `, ${tecnico.nome.split(' ')[0]}`}
           </div>
           <div className="pagina-subtitulo">
             {DIAS[agora.getDay()]}, {agora.getDate()} de {MESES[agora.getMonth()]} de {agora.getFullYear()} · {resumoDia}
@@ -193,7 +195,7 @@ export default function Inicio() {
                     className="tabela-linha"
                     onClick={() => navegar(`/os/${o.id}`)}
                     style={{
-                      gridTemplateColumns: '70px minmax(0,1fr) 200px 84px 150px',
+                      gridTemplateColumns: '150px minmax(0,1fr) 200px 84px 150px',
                       background: parada ? 'oklch(0.8 0.12 25 / 0.06)' : undefined,
                       boxShadow: parada ? 'inset 2px 0 0 oklch(0.75 0.13 25)' : 'none',
                     }}
@@ -267,7 +269,7 @@ export default function Inicio() {
                   </span>
                   <span className="truncar" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--color-neutral-400)', fontSize: 13 }}>
                     <i className="ph ph-map-pin" />
-                    <span className="truncar">{o.retirada_local || o.cliente?.endereco}</span>
+                    <span className="truncar">{clientes.find((c) => c.id === o.cliente?.id)?.endereco}</span>
                   </span>
                   <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--color-accent-300)' }}>Registrar retirada →</span>
                 </button>

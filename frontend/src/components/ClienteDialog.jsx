@@ -1,15 +1,11 @@
 import { useState } from 'react'
-import { useDados } from '../data/contexto'
 import { data, telefone, telefoneNormalizado } from '../data/formato'
 import ErroCampo from './ErroCampo'
 import { navegar } from './roteador'
 
 // Formulário de cliente (novo ou edição) com aviso de telefone já cadastrado (RF01, RF03, RF04).
-// Com onSalvar, os dados vão para a API; sem ele (tela Abrir OS), salvar só fecha o formulário.
-export default function ClienteDialog({ cliente, clientes: clientesApi, onSalvar, onFechar, onSalvo, onUsarExistente }) {
-  const exemplo = useDados()
-  const clientes = clientesApi ?? exemplo.clientes
-  const { equipamentos, ordens } = exemplo
+// `clientes` vem da listagem da API, que já traz a contagem de equipamentos e a data da última OS.
+export default function ClienteDialog({ cliente, clientes = [], onSalvar, onFechar, onSalvo, onUsarExistente }) {
   const [form, setForm] = useState({
     nome: cliente?.nome ?? '',
     telefone_whatsapp: telefone(cliente?.telefone_whatsapp ?? ''),
@@ -27,8 +23,6 @@ export default function ClienteDialog({ cliente, clientes: clientesApi, onSalvar
 
   async function salvar(e) {
     e.preventDefault()
-    if (!onSalvar) return onSalvo?.()
-
     setEnviando(true)
     setErros({})
     setErroGeral('')
@@ -42,27 +36,13 @@ export default function ClienteDialog({ cliente, clientes: clientesApi, onSalvar
     }
   }
 
-  let resumoDuplicado = ''
-  if (duplicado?.equipamentos_count !== undefined) {
-    // Cliente vindo da API: a listagem já traz a contagem e a data da última OS.
-    resumoDuplicado = [
-      duplicado.nome,
-      duplicado.equipamentos_count === 1 ? '1 equipamento' : `${duplicado.equipamentos_count} equipamentos`,
-      duplicado.ultima_os_em ? `última OS em ${data(duplicado.ultima_os_em)}` : 'nenhuma OS',
-    ].join(' · ')
-  } else if (duplicado) {
-    const eqs = equipamentos.filter((e) => e.cliente_id === duplicado.id)
-    const ultima = ordens
-      .filter((o) => o.cliente?.id === duplicado.id)
-      .map((o) => o.data_abertura)
-      .sort()
-      .at(-1)
-    resumoDuplicado = [
-      duplicado.nome,
-      eqs.length === 1 ? '1 equipamento' : `${eqs.length} equipamentos`,
-      ultima ? `última OS em ${data(ultima)}` : 'nenhuma OS',
-    ].join(' · ')
-  }
+  const resumoDuplicado = duplicado
+    ? [
+        duplicado.nome,
+        duplicado.equipamentos_count === 1 ? '1 equipamento' : `${duplicado.equipamentos_count} equipamentos`,
+        duplicado.ultima_os_em ? `última OS em ${data(duplicado.ultima_os_em)}` : 'nenhuma OS',
+      ].join(' · ')
+    : ''
 
   return (
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>

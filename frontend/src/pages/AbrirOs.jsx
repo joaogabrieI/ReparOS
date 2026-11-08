@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ClienteDialog from '../components/ClienteDialog'
 import EquipamentoCampos from '../components/EquipamentoCampos'
 import Layout from '../components/Layout'
+import ErroCampo from '../components/ErroCampo'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { dataHora, diaMes, nomeEquipamento, somenteDigitos } from '../data/formato'
+import { dataHora, diaMes, nomeEquipamento, telefone, telefoneNormalizado } from '../data/formato'
 import { EQUIPAMENTO_VAZIO } from '../data/regras'
 import { iconeEquipamento } from '../data/status'
+import { buscarCliente, salvarCliente } from '../services/clientes'
+import { salvarEquipamento } from '../services/equipamentos'
+import { abrirOrdem } from '../services/ordens'
 
 const NOVO = 'novo'
 
@@ -42,6 +46,7 @@ function Opcao({ marcada, onClick, icone, titulo, detalhe }) {
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={marcada ?? false}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -84,9 +89,11 @@ function LinhaResumo({ rotulo, children }) {
 }
 
 // Abertura de OS: cliente, equipamento, problema relatado e retirada combinada (RF02, RF05, RF07, RF08).
+// Clientes e equipamentos vêm da API; um equipamento novo é cadastrado antes de abrir a OS.
 export default function AbrirOs({ clienteInicial }) {
-  const { clientes, equipamentos, ordens, proximoNumeroOs } = useDados()
+  const { clientes, recarregar } = useDados()
   const [clienteId, setClienteId] = useState(clienteInicial ?? null)
+  const [ficha, setFicha] = useState(null)
   const [busca, setBusca] = useState('')
   const [novoCliente, setNovoCliente] = useState(false)
   const [equipamentoId, setEquipamentoId] = useState(null)
@@ -94,32 +101,84 @@ export default function AbrirOs({ clienteInicial }) {
   const [problema, setProblema] = useState('')
   const [retiradaData, setRetiradaData] = useState('')
   const [retiradaHora, setRetiradaHora] = useState('')
-  const [local, setLocal] = useState('')
   const [agora] = useState(() => new Date().toISOString())
+  const [erros, setErros] = useState({})
+  const [errosEquip, setErrosEquip] = useState({})
+  const [erroGeral, setErroGeral] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  const cliente = clientes.find((c) => c.id === clienteId)
-  const doCliente = equipamentos.filter((e) => e.cliente_id === clienteId)
-  const equipamento = equipamentos.find((e) => e.id === equipamentoId)
+  // Ficha do cliente escolhido: equipamentos e as OS de cada um.
+  useEffect(() => {
+    if (!clienteId) return
+    let ativo = true
+    buscarCliente(clienteId)
+      .then((c) => {
+        if (!ativo) return
+        setFicha(c)
+        setEquipamentoId((atual) => atual ?? (c.equipamentos.length ? c.equipamentos[0].id : NOVO))
+      })
+      .catch((e) => ativo && setErroGeral(e.message))
+    return () => {
+      ativo = false
+    }
+  }, [clienteId])
+
+  const cliente = ficha?.id === clienteId ? ficha : null
+  const doCliente = cliente?.equipamentos ?? []
+  const equipamento = doCliente.find((e) => e.id === equipamentoId)
 
   const termo = busca.trim().toLowerCase()
-  const digitos = somenteDigitos(busca)
+  const digitos = telefoneNormalizado(busca)
   const sugestoes = termo
-    ? clientes.filter((c) => c.nome.toLowerCase().includes(termo) || (digitos && somenteDigitos(c.telefone_whatsapp).includes(digitos))).slice(0, 5)
+    ? clientes.filter((c) => c.nome.toLowerCase().includes(termo) || (digitos && c.telefone_whatsapp.includes(digitos))).slice(0, 5)
     : []
 
   function escolherCliente(c) {
     setClienteId(c.id)
     setBusca('')
     setNovoCliente(false)
-    const eqs = equipamentos.filter((e) => e.cliente_id === c.id)
-    setEquipamentoId(eqs.length ? eqs[0].id : NOVO)
+    // O mesmo cliente de novo não recarrega a ficha: escolhe o primeiro equipamento aqui.
+    setEquipamentoId(c.id === cliente?.id ? (doCliente[0]?.id ?? NOVO) : null)
   }
 
-  // Ao abrir a tela pela ficha do cliente, já escolhe o primeiro equipamento.
-  if (cliente && equipamentoId === null) setEquipamentoId(doCliente.length ? doCliente[0].id : NOVO)
+  async function salvar() {
+    setErros({})
+    setErrosEquip({})
+    setErroGeral('')
+    if (!cliente) return setErroGeral('Escolha o cliente.')
+    if (!retiradaData || !retiradaHora) return setErros({ retirada_agendada: ['Informe a data e o horário combinados para a retirada.'] })
 
-  // Sem backend por enquanto: abrir a OS só leva para a lista de pendentes.
-  const salvar = () => navegar('/pendentes')
+    setEnviando(true)
+    try {
+      let idEquipamento = equipamentoId
+      if (equipamentoId === NOVO) {
+        try {
+          const salvo = await salvarEquipamento({ ...novoEquip, cliente_id: cliente.id })
+          idEquipamento = salvo.id
+          // Se a OS falhar, o equipamento já cadastrado fica escolhido e não é criado de novo.
+          setFicha({ ...cliente, equipamentos: [...doCliente, { ...salvo, ordens_servico: [] }] })
+          setEquipamentoId(salvo.id)
+          setNovoEquip(EQUIPAMENTO_VAZIO)
+        } catch (erro) {
+          if (erro.erros) setErrosEquip(erro.erros)
+          else setErroGeral(erro.message)
+          setEnviando(false)
+          return
+        }
+      }
+      const os = await abrirOrdem({
+        equipamento_id: idEquipamento,
+        problema_relatado: problema,
+        retirada_agendada: new Date(`${retiradaData}T${retiradaHora}`).toISOString(),
+      })
+      recarregar()
+      navegar(`/os/${os.id}`)
+    } catch (erro) {
+      if (erro.erros) setErros(erro.erros)
+      else setErroGeral(erro.message)
+      setEnviando(false)
+    }
+  }
 
   const nomeEquipResumo = equipamentoId === NOVO ? (novoEquip.modelo ? `${novoEquip.modelo} (novo)` : 'Novo equipamento') : equipamento?.modelo
 
@@ -154,7 +213,7 @@ export default function AbrirOs({ clienteInicial }) {
                 <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.4 }}>
                   <div style={{ fontWeight: 500 }}>{cliente.nome}</div>
                   <div style={{ color: 'var(--color-neutral-400)', fontSize: 12.5 }}>
-                    {cliente.telefone_whatsapp} · {cliente.endereco}
+                    {telefone(cliente.telefone_whatsapp)} · {cliente.endereco}
                   </div>
                 </div>
                 <button
@@ -162,6 +221,7 @@ export default function AbrirOs({ clienteInicial }) {
                   style={{ height: 28, fontWeight: 400, fontSize: 12.5 }}
                   onClick={() => {
                     setClienteId(null)
+                    setFicha(null)
                     setEquipamentoId(null)
                   }}
                 >
@@ -175,7 +235,7 @@ export default function AbrirOs({ clienteInicial }) {
                   <input className="input" autoFocus placeholder="Buscar cliente por nome ou telefone" value={busca} onChange={(e) => setBusca(e.target.value)} />
                 </div>
                 {sugestoes.map((c) => (
-                  <Opcao key={c.id} onClick={() => escolherCliente(c)} icone="ph-user" titulo={c.nome} detalhe={`${c.telefone_whatsapp} · ${c.endereco}`} />
+                  <Opcao key={c.id} onClick={() => escolherCliente(c)} icone="ph-user" titulo={c.nome} detalhe={`${telefone(c.telefone_whatsapp)} · ${c.endereco}`} />
                 ))}
                 {termo && sugestoes.length === 0 && <div className="muted" style={{ fontSize: 13 }}>Nenhum cliente encontrado. Cadastre um novo.</div>}
               </>
@@ -185,13 +245,13 @@ export default function AbrirOs({ clienteInicial }) {
           <Etapa numero={2} titulo="Equipamento">
             {!cliente ? (
               <div className="muted" style={{ fontSize: 13 }}>
-                Escolha o cliente primeiro.
+                {clienteId ? 'Carregando equipamentos…' : 'Escolha o cliente primeiro.'}
               </div>
             ) : (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {doCliente.map((e) => {
-                    const n = ordens.filter((o) => o.equipamento_id === e.id).length
+                    const n = e.ordens_servico?.length ?? 0
                     const detalhe = [e.numero_serie && `Série ${e.numero_serie}`, n === 1 ? '1 OS anterior' : `${n} OS anteriores`].filter(Boolean).join(' · ')
                     return (
                       <Opcao
@@ -214,7 +274,7 @@ export default function AbrirOs({ clienteInicial }) {
                 </div>
                 {equipamentoId === NOVO && (
                   <div style={{ paddingTop: 4 }}>
-                    <EquipamentoCampos valor={novoEquip} onChange={setNovoEquip} />
+                    <EquipamentoCampos valor={novoEquip} onChange={setNovoEquip} erros={errosEquip} />
                   </div>
                 )}
               </>
@@ -224,25 +284,44 @@ export default function AbrirOs({ clienteInicial }) {
           <Etapa numero={3} titulo="Problema e retirada">
             <div className="field">
               <label htmlFor="o-problema">Problema relatado pelo cliente *</label>
-              <textarea id="o-problema" className="input" value={problema} onChange={(e) => setProblema(e.target.value)} />
+              <textarea
+                id="o-problema"
+                className={`input${erros.problema_relatado ? ' input-erro' : ''}`}
+                value={problema}
+                onChange={(e) => setProblema(e.target.value)}
+              />
+              <ErroCampo erros={erros.problema_relatado} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 10 }}>
               <div className="field">
                 <label htmlFor="o-data">Retirada combinada — data *</label>
-                <input id="o-data" type="date" className="input" value={retiradaData} onChange={(e) => setRetiradaData(e.target.value)} />
+                <input
+                  id="o-data"
+                  type="date"
+                  className={`input${erros.retirada_agendada ? ' input-erro' : ''}`}
+                  value={retiradaData}
+                  onChange={(e) => setRetiradaData(e.target.value)}
+                />
               </div>
               <div className="field">
                 <label htmlFor="o-hora">Horário *</label>
-                <input id="o-hora" type="time" className="input" value={retiradaHora} onChange={(e) => setRetiradaHora(e.target.value)} />
+                <input
+                  id="o-hora"
+                  type="time"
+                  className={`input${erros.retirada_agendada ? ' input-erro' : ''}`}
+                  value={retiradaHora}
+                  onChange={(e) => setRetiradaHora(e.target.value)}
+                />
               </div>
               <div className="field">
-                <label htmlFor="o-local">Local da retirada</label>
-                <div className="input-icone">
-                  <i className="ph ph-map-pin" />
-                  <input id="o-local" className="input" placeholder="Endereço do cadastro do cliente" value={local} onChange={(e) => setLocal(e.target.value)} />
+                <span style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>Local da retirada</span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 36, fontSize: 13, color: 'var(--color-neutral-300)' }}>
+                  <i className="ph ph-map-pin" aria-hidden="true" />
+                  {cliente?.endereco ?? 'Endereço do cadastro do cliente'}
                 </div>
               </div>
             </div>
+            <ErroCampo erros={erros.retirada_agendada} />
           </Etapa>
         </div>
 
@@ -250,7 +329,7 @@ export default function AbrirOs({ clienteInicial }) {
           <div className="painel painel-pad">
             <div style={{ fontWeight: 500 }}>Resumo da OS</div>
             <LinhaResumo rotulo="Número">
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{proximoNumeroOs()}</span>
+              <span style={{ color: 'var(--color-neutral-400)' }}>gerado ao salvar</span>
             </LinhaResumo>
             <LinhaResumo rotulo="Data de abertura">{dataHora(agora)}</LinhaResumo>
             <LinhaResumo rotulo="Status inicial">
@@ -264,9 +343,10 @@ export default function AbrirOs({ clienteInicial }) {
             </LinhaResumo>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>Número e data são gerados automaticamente ao salvar.</div>
           </div>
-          <button className="btn btn-primary btn-block" style={{ height: 44 }} onClick={salvar}>
+          <ErroCampo erros={erros.equipamento_id ?? (erroGeral ? [erroGeral] : null)} />
+          <button className="btn btn-primary btn-block" style={{ height: 44 }} onClick={salvar} disabled={enviando}>
             <i className="ph ph-check" />
-            Abrir OS
+            {enviando ? 'Abrindo…' : 'Abrir OS'}
           </button>
           <button className="btn btn-secondary btn-block" onClick={() => window.history.back()}>
             Cancelar
@@ -276,8 +356,13 @@ export default function AbrirOs({ clienteInicial }) {
 
       {novoCliente && (
         <ClienteDialog
+          clientes={clientes}
+          onSalvar={(dados) => salvarCliente(dados)}
           onFechar={() => setNovoCliente(false)}
-          onSalvo={() => setNovoCliente(false)}
+          onSalvo={(salvo) => {
+            recarregar()
+            escolherCliente(salvo)
+          }}
           onUsarExistente={escolherCliente}
         />
       )}

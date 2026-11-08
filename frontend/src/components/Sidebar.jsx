@@ -1,5 +1,4 @@
 import { useDados } from '../data/contexto'
-import { tecnico } from '../data/exemplo'
 import { api, apagarToken } from '../services/api'
 
 // Encerra o token na API (se ainda valer) e volta para a tela de entrar.
@@ -28,7 +27,7 @@ function iniciais(nome = '') {
 
 // Navegação principal da área do técnico (ReparOSSidebar, nav v2).
 export default function Sidebar({ ativo }) {
-  const { ordens } = useDados()
+  const { ordens, tecnico } = useDados()
   const pendentes = ordens.filter((o) => o.status !== 'entregue').length
 
   return (
@@ -50,7 +49,7 @@ export default function Sidebar({ ativo }) {
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, minWidth: 0 }}>
           <span className="truncar" style={{ fontWeight: 600, fontSize: 14.5 }}>
-            {tecnico.nome_assistencia}
+            {tecnico?.nome_assistencia ?? 'ReparOS'}
           </span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>ReparOS</span>
         </div>
@@ -106,11 +105,11 @@ export default function Sidebar({ ativo }) {
         }}
       >
         <span className="avatar" style={{ width: 30, height: 30, fontSize: 12, background: 'var(--color-neutral-800)', color: 'var(--color-neutral-200)' }}>
-          {iniciais(tecnico.nome)}
+          {iniciais(tecnico?.nome)}
         </span>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
           <span className="truncar" style={{ fontSize: 13 }}>
-            {tecnico.nome}
+            {tecnico?.nome ?? '…'}
           </span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>Técnico</span>
         </div>

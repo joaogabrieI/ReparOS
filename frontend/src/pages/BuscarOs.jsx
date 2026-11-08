@@ -1,45 +1,58 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
-import { useDados } from '../data/contexto'
-import { dataIso, diaMes, diaMesHora, somenteDigitos } from '../data/formato'
+import { diaMes, diaMesHora } from '../data/formato'
+import { detalhar } from '../data/regras'
 import { iconeEquipamento, STATUS, TIPOS_EQUIPAMENTO } from '../data/status'
+import { listarOrdens } from '../services/ordens'
 
-const GRID = '76px 100px minmax(0,1fr) minmax(0,1.2fr) 220px 150px'
-const FILTROS_VAZIOS = { cliente: '', tipo: '', status: '', de: '', ate: '' }
+const GRID = '150px 100px minmax(0,1fr) minmax(0,1.2fr) 220px 150px'
+const FILTROS_VAZIOS = { busca: '', tipo: '', status: '', de: '', ate: '', paradas: false }
 
 const ORDENACOES = {
-  recentes: { rotulo: 'Abertura (recentes)', comparar: (a, b) => b.data_abertura.localeCompare(a.data_abertura) },
-  antigas: { rotulo: 'Abertura (antigas)', comparar: (a, b) => a.data_abertura.localeCompare(b.data_abertura) },
-  mudanca: { rotulo: 'Última mudança', comparar: (a, b) => b.data_status.localeCompare(a.data_status) },
+  recentes: 'Abertura (recentes)',
+  antigas: 'Abertura (antigas)',
+  mudanca: 'Última mudança',
 }
 
-// Busca de todas as OS, inclusive entregues, por cliente, equipamento, status e período (RF23).
+// Busca de todas as OS, inclusive entregues, por número, cliente, equipamento, status e período (RF23, RF24).
+// Os filtros e a ordenação são aplicados na API (/api/ordens-servico).
 export default function BuscarOs() {
-  const { ordens } = useDados()
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS)
   const [ordenacao, setOrdenacao] = useState('recentes')
+  const [resultado, setResultado] = useState(null)
+  const [erros, setErros] = useState({})
+  const [erro, setErro] = useState('')
 
-  const mudar = (campo) => (e) => setFiltros({ ...filtros, [campo]: e.target.value })
+  const mudar = (campo) => (e) => setFiltros({ ...filtros, [campo]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
 
-  const termo = filtros.cliente.trim().toLowerCase()
-  const digitos = somenteDigitos(filtros.cliente)
-  const resultado = ordens
-    .filter((o) => {
-      if (termo) {
-        const nome = o.cliente?.nome.toLowerCase().includes(termo)
-        const telefone = digitos && somenteDigitos(o.cliente?.telefone_whatsapp ?? '').includes(digitos)
-        if (!nome && !telefone) return false
-      }
-      if (filtros.tipo && o.equipamento?.tipo !== filtros.tipo) return false
-      if (filtros.status && o.status !== filtros.status) return false
-      const abertura = dataIso(o.data_abertura)
-      if (filtros.de && abertura < filtros.de) return false
-      if (filtros.ate && abertura > filtros.ate) return false
-      return true
-    })
-    .sort(ORDENACOES[ordenacao].comparar)
+  // Pequena espera enquanto o técnico digita, como na busca de clientes.
+  useEffect(() => {
+    let ativo = true
+    const espera = setTimeout(() => {
+      listarOrdens({ ...filtros, ordem: ordenacao })
+        .then((lista) => {
+          if (!ativo) return
+          setResultado(lista.map(detalhar))
+          setErros({})
+          setErro('')
+        })
+        .catch((e) => {
+          if (!ativo) return
+          if (e.erros) setErros(e.erros)
+          else setErro(e.message)
+        })
+    }, 250)
+    return () => {
+      ativo = false
+      clearTimeout(espera)
+    }
+  }, [filtros, ordenacao])
+
+  const lista = resultado ?? []
+  const erroPeriodo = erros.de ?? erros.ate
 
   return (
     <Layout
@@ -63,16 +76,16 @@ export default function BuscarOs() {
           style={{
             padding: '14px 16px',
             display: 'grid',
-            gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr) auto',
+            gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr) auto auto',
             gap: 12,
             alignItems: 'end',
           }}
         >
           <div className="field">
-            <label htmlFor="f-cliente">Cliente</label>
+            <label htmlFor="f-busca">Busca</label>
             <div className="input-icone">
-              <i className="ph ph-user" />
-              <input id="f-cliente" className="input" placeholder="Nome ou telefone" value={filtros.cliente} onChange={mudar('cliente')} />
+              <i className="ph ph-magnifying-glass" />
+              <input id="f-busca" className="input" placeholder="Nº da OS, cliente, telefone ou modelo" value={filtros.busca} onChange={mudar('busca')} />
             </div>
           </div>
           <div className="field">
@@ -98,18 +111,43 @@ export default function BuscarOs() {
           <div className="field">
             <label>Período de abertura</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="date" className="input" aria-label="Aberta a partir de" value={filtros.de} onChange={mudar('de')} />
+              <input
+                type="date"
+                className={`input${erros.de ? ' input-erro' : ''}`}
+                aria-label="Aberta a partir de"
+                value={filtros.de}
+                onChange={mudar('de')}
+              />
               <span className="muted">–</span>
-              <input type="date" className="input" aria-label="Aberta até" value={filtros.ate} onChange={mudar('ate')} />
+              <input
+                type="date"
+                className={`input${erros.ate ? ' input-erro' : ''}`}
+                aria-label="Aberta até"
+                value={filtros.ate}
+                onChange={mudar('ate')}
+              />
             </div>
           </div>
+          <label className="check" style={{ alignItems: 'center', height: 36, whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={filtros.paradas} onChange={mudar('paradas')} />
+            <span className="caixa" style={{ marginTop: 0 }}>
+              <i className="ph ph-check" />
+            </span>
+            Só paradas
+          </label>
           <button className="btn btn-ghost" onClick={() => setFiltros(FILTROS_VAZIOS)}>
             Limpar
           </button>
         </div>
 
+        {(erroPeriodo || erro) && (
+          <div role="alert">
+            <ErroCampo erros={erroPeriodo ?? [erro]} />
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--color-neutral-400)' }}>
-          <span>{resultado.length === 1 ? '1 resultado' : `${resultado.length} resultados`}</span>
+          <span role="status">{!resultado ? 'Carregando…' : lista.length === 1 ? '1 resultado' : `${lista.length} resultados`}</span>
           <label htmlFor="f-ordem" style={{ marginLeft: 'auto' }}>
             Ordenar por
           </label>
@@ -120,9 +158,9 @@ export default function BuscarOs() {
             value={ordenacao}
             onChange={(e) => setOrdenacao(e.target.value)}
           >
-            {Object.entries(ORDENACOES).map(([valor, o]) => (
+            {Object.entries(ORDENACOES).map(([valor, rotulo]) => (
               <option key={valor} value={valor}>
-                {o.rotulo}
+                {rotulo}
               </option>
             ))}
           </select>
@@ -137,10 +175,10 @@ export default function BuscarOs() {
             <span>Status</span>
             <span>Última mudança</span>
           </div>
-          {resultado.length === 0 && (
+          {resultado && lista.length === 0 && (
             <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--color-neutral-500)' }}>Nenhuma OS com esses filtros.</div>
           )}
-          {resultado.map((o) => (
+          {lista.map((o) => (
             <button key={o.id} className="tabela-linha" style={{ gridTemplateColumns: GRID }} onClick={() => navegar(`/os/${o.id}`)}>
               <span className="mono">{o.numero}</span>
               <span style={{ color: 'var(--color-neutral-400)' }}>{diaMes(o.data_abertura)}</span>

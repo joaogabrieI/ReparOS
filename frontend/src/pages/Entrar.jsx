@@ -80,6 +80,9 @@ export default function Entrar() {
         <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)', textAlign: 'center', marginTop: 8 }}>
           Ainda não tem conta? <a href="#/cadastro">Cadastre sua assistência</a>
         </div>
+        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)', textAlign: 'center' }}>
+          É cliente? <a href="#/acompanhar">Acompanhe o reparo pelo número da OS</a>
+        </div>
       </form>
     </AcessoLayout>
   )
