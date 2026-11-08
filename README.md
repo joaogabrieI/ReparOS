@@ -101,6 +101,14 @@ Regras garantidas pelo banco:
 - O WhatsApp do cliente é único dentro de cada técnico, para que duas assistências possam atender o mesmo cliente. A API guarda só DDD e número (`11988887777`), então `(11) 98888-7777` e `+55 11 98888-7777` contam como o mesmo telefone.
 - Toda OS nasce como "Aberta" com número próprio, e `OrdemServico::mudarStatus()` troca o status e grava o histórico na mesma transação.
 
+Regras da aplicação:
+
+- O status só avança para o próximo passo do fluxo (`StatusOrdemServico::proximos()`): Aberta → Aguardando diagnóstico → Diagnóstico realizado → Orçamento enviado → Aguardando aprovação → Em reparo → Pronto para retirada → Entregue. A recusa do orçamento leva a "Orçamento recusado" e dali à entrega sem reparo. Pular ou voltar uma etapa responde 422.
+- O histórico de status não pode ser alterado nem apagado (o model recusa `update` e `delete`).
+- O orçamento só é lançado depois do diagnóstico e pode ser corrigido até ser enviado; depois do envio, itens, valores e diagnóstico ficam travados. O total é sempre calculado no servidor.
+- No envio, a validade do orçamento é gravada (10 dias por padrão, CDC art. 40). O campo `vencido` indica orçamento pendente com a validade passada.
+- O prazo é combinado em dias úteis após a aprovação (`prazo_dias`); na aprovação ele vira a data `prazo_entrega`. A resposta do cliente guarda a data e o canal (WhatsApp, telefone ou presencial).
+
 ## Rotas da API
 
 | Método | Rota | Acesso | Descrição |
@@ -117,7 +125,16 @@ Regras garantidas pelo banco:
 | POST | `/api/equipamentos` | token | Cadastra equipamento (`cliente_id`, `tipo`, `marca`, `modelo`, `numero_serie` opcional) |
 | GET | `/api/equipamentos/{id}` | token | Ficha do equipamento com o cliente e as OS |
 | PUT | `/api/equipamentos/{id}` | token | Edita o equipamento (não muda de cliente) |
+| GET | `/api/ordens-servico?status=&equipamento_id=&cliente_id=` | token | OS dos clientes do técnico, da mais recente para a mais antiga, com equipamento e nome do cliente (sem endereço) |
+| POST | `/api/ordens-servico` | token | Abre a OS (`equipamento_id`, `problema_relatado`, `retirada_agendada` opcional) com status "Aberta" |
+| GET | `/api/ordens-servico/{id}` | token | Ficha da OS com equipamento, cliente, orçamento com itens e histórico em ordem cronológica |
+| PUT | `/api/ordens-servico/{id}` | token | Edita `problema_relatado` e `retirada_agendada` (só antes do diagnóstico) |
+| POST | `/api/ordens-servico/{id}/retirada` | token | Registra a retirada (`data_retirada` e `observacao` opcionais, como estado do aparelho e acessórios) → "Aguardando diagnóstico" |
+| POST | `/api/ordens-servico/{id}/diagnostico` | token | Registra o diagnóstico (`diagnostico`) → "Diagnóstico realizado"; até o envio do orçamento, corrige o texto |
+| PUT | `/api/ordens-servico/{id}/orcamento` | token | Lança ou corrige o orçamento (`prazo_dias`, `validade_dias` opcional, `itens` com `tipo` peca/servico, `descricao`, `quantidade`, `valor_unitario`) |
+| POST | `/api/ordens-servico/{id}/orcamento/envio` | token | Marca o orçamento como enviado → "Orçamento enviado" e "Aguardando aprovação" |
+| POST | `/api/ordens-servico/{id}/orcamento/resposta` | token | Registra a resposta (`aprovado` true/false, `canal`, `observacao` opcional) → "Em reparo" ou "Orçamento recusado" |
 
-Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente ou equipamento de outro técnico responde 404. O `tipo` do equipamento aceita Smartphone, Tablet, Notebook, Videogame e Controle de videogame.
+Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente, equipamento ou OS de outro técnico responde 404. O `tipo` do equipamento aceita Smartphone, Tablet, Notebook, Videogame e Controle de videogame.
 
 Os testes (`php artisan test`) usam o banco local e desfazem tudo ao final de cada teste.
