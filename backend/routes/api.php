@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcompanhamentoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\EquipamentoController;
@@ -36,8 +37,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/pronto', [ReparoController::class, 'pronto']);
         Route::post('/entrega', [ReparoController::class, 'entrega']);
         Route::get('/historico', [ReparoController::class, 'historico']);
+        Route::get('/whatsapp', [OrdemServicoController::class, 'whatsapp']);
     });
 });
 
-// Área do cliente (sem login): acompanhar a OS pelo número
-// Route::get('/acompanhar/{numero}', ...);
+// Área do cliente (sem login): acompanhar a OS pelo número. O limite por minuto dificulta
+// adivinhar números de OS de outras pessoas.
+Route::get('/acompanhar/{numero}', AcompanhamentoController::class)->middleware('throttle:20,1');
