@@ -107,6 +107,8 @@ Regras da aplicação:
 - O histórico de status não pode ser alterado nem apagado (o model recusa `update` e `delete`).
 - O orçamento só é lançado depois do diagnóstico e pode ser corrigido até ser enviado; depois do envio, itens, valores e diagnóstico ficam travados. O total é sempre calculado no servidor.
 - No envio, a validade do orçamento é gravada (10 dias por padrão, CDC art. 40). O campo `vencido` indica orçamento pendente com a validade passada.
+- Uma OS está parada quando passa mais de 3 dias na mesma etapa sem ser entregue (`dias_na_etapa` e `parada` em toda OS).
+- O WhatsApp não é enviado pelo servidor: a API monta a mensagem do status atual (retirada, orçamento com itens, total, prazo e validade, reparo, pronto, devolução sem reparo, entrega), assinada com o nome da assistência, e o link `wa.me`; o técnico revisa e envia.
 - O prazo é combinado em dias úteis após a aprovação (`prazo_dias`); na aprovação ele vira a data `prazo_entrega`. A resposta do cliente guarda a data e o canal (WhatsApp, telefone ou presencial).
 
 ## Rotas da API
@@ -125,7 +127,7 @@ Regras da aplicação:
 | POST | `/api/equipamentos` | token | Cadastra equipamento (`cliente_id`, `tipo`, `marca`, `modelo`, `numero_serie` opcional) |
 | GET | `/api/equipamentos/{id}` | token | Ficha do equipamento com o cliente e as OS |
 | PUT | `/api/equipamentos/{id}` | token | Edita o equipamento (não muda de cliente) |
-| GET | `/api/ordens-servico?status=&equipamento_id=&cliente_id=` | token | OS dos clientes do técnico, da mais recente para a mais antiga, com equipamento e nome do cliente (sem endereço) |
+| GET | `/api/ordens-servico?busca=&status=&tipo=&de=&ate=&pendentes=&paradas=&ordem=&equipamento_id=&cliente_id=` | token | Busca de OS dos clientes do técnico, com equipamento, nome e telefone do cliente (sem endereço), `dias_na_etapa` e `parada`. `busca` compara número da OS, nome ou telefone do cliente, marca e modelo; `de`/`ate` filtram a abertura (aaaa-mm-dd); `pendentes=1` tira as entregues; `paradas=1` traz só as paradas; `ordem` é `recentes` (padrão), `antigas` ou `mudanca` |
 | POST | `/api/ordens-servico` | token | Abre a OS (`equipamento_id`, `problema_relatado`, `retirada_agendada` opcional) com status "Aberta" |
 | GET | `/api/ordens-servico/{id}` | token | Ficha da OS com equipamento, cliente, orçamento com itens e histórico em ordem cronológica |
 | PUT | `/api/ordens-servico/{id}` | token | Edita `problema_relatado` e `retirada_agendada` (só antes do diagnóstico) |
@@ -134,6 +136,12 @@ Regras da aplicação:
 | PUT | `/api/ordens-servico/{id}/orcamento` | token | Lança ou corrige o orçamento (`prazo_dias`, `validade_dias` opcional, `itens` com `tipo` peca/servico, `descricao`, `quantidade`, `valor_unitario`) |
 | POST | `/api/ordens-servico/{id}/orcamento/envio` | token | Marca o orçamento como enviado → "Orçamento enviado" e "Aguardando aprovação" |
 | POST | `/api/ordens-servico/{id}/orcamento/resposta` | token | Registra a resposta (`aprovado` true/false, `canal`, `observacao` opcional) → "Em reparo" ou "Orçamento recusado" |
+| PUT | `/api/ordens-servico/{id}/reparo` | token | Registra o serviço executado e as peças trocadas (só em reparo) |
+| POST | `/api/ordens-servico/{id}/pronto` | token | "Em reparo" → "Pronto para retirada" (exige o serviço executado) |
+| POST | `/api/ordens-servico/{id}/entrega` | token | Entrega e encerra a OS ("Pronto para retirada" ou "Orçamento recusado") → "Entregue" |
+| GET | `/api/ordens-servico/{id}/historico` | token | Histórico de status em ordem cronológica |
+| GET | `/api/ordens-servico/{id}/whatsapp` | token | Mensagem pronta para o status atual e link `wa.me` para o técnico enviar ao cliente |
+| GET | `/api/acompanhar/{numero}` | público | Andamento da OS para o cliente: status, equipamento, histórico e orçamento depois de enviado, sem dados pessoais (limite de 20 consultas por minuto) |
 
 Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente, equipamento ou OS de outro técnico responde 404. O `tipo` do equipamento aceita Smartphone, Tablet, Notebook, Videogame e Controle de videogame.
 
