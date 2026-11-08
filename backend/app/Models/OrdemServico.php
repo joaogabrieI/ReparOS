@@ -19,6 +19,13 @@ class OrdemServico extends Model
 
     protected $table = 'ordens_servico';
 
+    /**
+     * OS parada: mais de 3 dias na mesma etapa sem ser entregue (RF24).
+     */
+    public const DIAS_PARADA = 3;
+
+    protected $appends = ['dias_na_etapa', 'parada'];
+
     protected $fillable = [
         'equipamento_id',
         'problema_relatado',
@@ -97,6 +104,28 @@ class OrdemServico extends Model
     public function scopeDoTecnico(Builder $query, int $tecnicoId): void
     {
         $query->whereHas('equipamento.cliente', fn ($query) => $query->where('tecnico_id', $tecnicoId));
+    }
+
+    /**
+     * OS não entregues que estão há mais de DIAS_PARADA dias na mesma etapa (RF24).
+     */
+    public function scopeParadas(Builder $query): void
+    {
+        $query->where('status', '!=', StatusOrdemServico::Entregue)
+            ->where('data_status', '<', today()->subDays(self::DIAS_PARADA));
+    }
+
+    /**
+     * Dias corridos desde a última mudança de status ("hoje" = 0).
+     */
+    public function getDiasNaEtapaAttribute(): int
+    {
+        return (int) $this->data_status->copy()->startOfDay()->diffInDays(today());
+    }
+
+    public function getParadaAttribute(): bool
+    {
+        return $this->status !== StatusOrdemServico::Entregue && $this->dias_na_etapa > self::DIAS_PARADA;
     }
 
     public function pertenceA(Tecnico $tecnico): bool
