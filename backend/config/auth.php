@@ -40,6 +40,12 @@ return [
         ],
     ],
 
+    /*
+    | Sessão do técnico: o token expira após este tempo sem uso (minutos).
+    */
+
+    'sessao_minutos' => (int) env('SESSAO_MINUTOS', 30),
+
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
 ];

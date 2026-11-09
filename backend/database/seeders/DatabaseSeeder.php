@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
             'nome_assistencia' => 'Assistência Demo',
             'telefone' => '(11) 90000-0000',
             'email' => 'tecnico@reparos.test',
-            'password' => 'senha123',
+            'password' => 'Senha@123',
         ]);
 
         $cliente = $tecnico->clientes()->create([
