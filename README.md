@@ -7,7 +7,7 @@ Sistema de gestão de ordens de serviço para assistências técnicas.
 | [`backend/`](backend) | API REST | Laravel 12 (PHP 8.2+), PostgreSQL, Sanctum |
 | [`frontend/`](frontend) | Interface web | React 19 + Vite |
 
-O frontend conversa com o backend só pela API (`http://localhost:8000/api`). O CORS do Laravel já libera o endereço do frontend (`FRONTEND_URL` no `.env` do backend).
+O frontend conversa com o backend só pela API (`http://localhost:8000/api`). O CORS do Laravel já libera o endereço do frontend (`FRONTEND_URL` no `.env` do backend). O mesmo `FRONTEND_URL` (o primeiro, se houver vários separados por vírgula) é a base dos links que o backend gera para telas do React: acompanhamento da OS no WhatsApp e nova senha no e-mail. Em produção, aponte para o endereço público do frontend.
 
 Perfis: **Técnico** (faz login e gerencia tudo) e **Cliente** (acompanha a OS sem conta). Não há cadastro de funcionários.
 
@@ -67,7 +67,7 @@ Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. Todas a
 - **Detalhe da OS**: cada etapa chama a rota dela (retirada, diagnóstico, orçamento com rascunho e envio, resposta do cliente com o canal, reparo com peças trocadas, pronto, entrega ou devolução sem reparo) e mostra o histórico devolvido pela API. O botão **Enviar WhatsApp** abre o link `wa.me` montado por `/whatsapp`; enviar o orçamento salva, registra o envio e abre a mensagem com a validade.
 - **Clientes**: listagem, busca, ficha, cadastro e edição de clientes e de equipamentos.
 
-Os erros de validação (422) aparecem ao lado de cada campo. O cliente acompanha o reparo sem login em `#/acompanhar` (ou `#/acompanhar/<número da OS>`), com link na tela de entrar. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha` e também usam a API: o cadastro já entra na conta criada, e o link de nova senha (enviado para o log em `storage/logs/laravel.log`, já que `MAIL_MAILER=log`) abre `#/nova-senha?token=...&email=...`. Depois de 30 minutos sem uso a sessão expira e a tela de entrar avisa.
+Os erros de validação (422) aparecem ao lado de cada campo. O cliente acompanha o reparo sem login em `#/acompanhar` (ou `#/acompanhar/<número da OS>`), com link na tela de entrar e em toda mensagem do WhatsApp. Com o orçamento aguardando aprovação, o link do WhatsApp leva também um código (`#/acompanhar/<número>?codigo=...`) e a tela mostra os itens, o prazo e os botões **Aprovar orçamento** e **Recusar**, cada um com confirmação (foco no botão de confirmar, Esc fecha). Orçamento vencido mostra o aviso e só pode ser recusado por ali. No detalhe da OS, **Cobrar resposta** manda o lembrete com o mesmo link. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha` e também usam a API: o cadastro já entra na conta criada, e o link de nova senha (enviado para o log em `storage/logs/laravel.log`, já que `MAIL_MAILER=log`) abre `#/nova-senha?token=...&email=...`. Depois de 30 minutos sem uso a sessão expira e a tela de entrar avisa.
 
 ## Estrutura
 
@@ -122,7 +122,8 @@ Regras da aplicação:
 - O backend usa o horário de Brasília (`APP_TIMEZONE=America/Sao_Paulo`) para gravar datas, calcular "hoje" e montar as mensagens; o JSON da API devolve as datas em ISO 8601 (UTC).
 - Uma OS está parada quando passa mais de 3 dias na mesma etapa sem ser entregue (`dias_na_etapa` e `parada` em toda OS).
 - O WhatsApp não é enviado pelo servidor: a API monta a mensagem do status atual (retirada, orçamento com itens, total, prazo e validade, reparo, pronto, devolução sem reparo, entrega), assinada com o nome da assistência, e o link `wa.me`; o técnico revisa e envia.
-- O prazo é combinado em dias úteis após a aprovação (`prazo_dias`); na aprovação ele vira a data `prazo_entrega`. A resposta do cliente guarda a data e o canal (WhatsApp, telefone ou presencial).
+- O prazo é combinado em dias úteis após a aprovação (`prazo_dias`); na aprovação ele vira a data `prazo_entrega`. A resposta do cliente guarda a data e o canal (WhatsApp, telefone ou presencial, ou `link` quando o próprio cliente responde pela tela de acompanhamento).
+- Resposta pelo cliente: o número da OS só dá acesso à consulta. Para aprovar ou recusar é preciso o código de 32 caracteres aleatórios gerado no envio do orçamento, que só sai no link do WhatsApp (nenhuma resposta da API o devolve), é comparado em tempo constante e deixa de valer após a primeira resposta. A rota tem limite de 10 pedidos por minuto por IP, segue as mesmas regras da resposta registrada pelo técnico (um passo no fluxo, histórico imutável) e grava no histórico que a resposta veio do próprio cliente pela tela. Orçamento vencido não pode ser aprovado por ali, só recusado: os valores precisam ser confirmados com a assistência.
 
 ## Rotas da API
 
@@ -156,8 +157,9 @@ Regras da aplicação:
 | POST | `/api/ordens-servico/{id}/pronto` | token | "Em reparo" → "Pronto para retirada" (exige o serviço executado) |
 | POST | `/api/ordens-servico/{id}/entrega` | token | Entrega e encerra a OS ("Pronto para retirada" ou "Orçamento recusado") → "Entregue" |
 | GET | `/api/ordens-servico/{id}/historico` | token | Histórico de status em ordem cronológica |
-| GET | `/api/ordens-servico/{id}/whatsapp` | token | Mensagem pronta para o status atual e link `wa.me` para o técnico enviar ao cliente |
-| GET | `/api/acompanhar/{numero}` | público | Andamento da OS para o cliente: status, equipamento, histórico e orçamento depois de enviado, sem dados pessoais (limite de 20 consultas por minuto) |
+| GET | `/api/ordens-servico/{id}/whatsapp` | token | Mensagem pronta para o status atual, com o link da tela de acompanhamento (`acompanhamento`), e link `wa.me` para o técnico enviar ao cliente |
+| GET | `/api/acompanhar/{numero}` | público | Andamento da OS para o cliente: status, equipamento, histórico e orçamento depois de enviado (total, itens, prazo, validade e se venceu), sem dados pessoais (limite de 20 consultas por minuto) |
+| POST | `/api/acompanhar/{numero}/orcamento/resposta` | público + código | O cliente aprova ou recusa (`codigo` do link, `aprovado` true/false) → "Em reparo" ou "Orçamento recusado", canal `link`. 403 com código errado, 422 fora de "Aguardando aprovação" ou ao aprovar orçamento vencido (limite de 10 por minuto) |
 
 Envie o token no cabeçalho `Authorization: Bearer <token>`. Cliente, equipamento ou OS de outro técnico responde 404. O `tipo` do equipamento aceita Smartphone, Tablet, Notebook, Videogame e Controle de videogame.
 
