@@ -56,10 +56,10 @@ export async function api(path, { method = 'GET', body, token = lerToken() } = {
 
   const dados = await resposta.json().catch(() => null)
   if (!resposta.ok) {
-    // Sessão expirada ou sem login: volta para a tela de entrar.
+    // Sessão expirada (30 min sem uso) ou sem login: volta para a tela de entrar.
     if (resposta.status === 401 && path !== '/login') {
       apagarToken()
-      window.location.hash = '/entrar'
+      window.location.hash = token ? '/entrar?expirou=1' : '/entrar'
     }
     throw new ErroApi(dados?.message ?? `Erro ${resposta.status} ao chamar ${path}`, resposta.status, dados?.errors ?? null)
   }

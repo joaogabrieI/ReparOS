@@ -35,10 +35,10 @@ function App() {
   const partes = caminho.split('/').filter(Boolean)
 
   // Telas de acesso: entrar, criar conta e recuperar senha.
-  if (caminho === '/entrar') return <Entrar />
+  if (caminho === '/entrar') return <Entrar expirou={params.has('expirou')} />
   if (caminho === '/cadastro') return <Cadastro />
   if (caminho === '/esqueci-senha') return <RecuperarSenha />
-  if (caminho === '/nova-senha') return <NovaSenha email={params.get('email')} />
+  if (caminho === '/nova-senha') return <NovaSenha token={params.get('token') ?? ''} email={params.get('email') ?? ''} />
 
   // Área do cliente, sem login: andamento da OS pelo número.
   if (partes[0] === 'acompanhar') return <Acompanhar key={partes[1] ?? ''} numeroInicial={partes[1] ? decodeURIComponent(partes[1]) : ''} />

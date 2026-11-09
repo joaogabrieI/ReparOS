@@ -16,14 +16,17 @@ export function proximoStatus(status) {
 
 export const EQUIPAMENTO_VAZIO = { tipo: '', marca: '', modelo: '', numero_serie: '' }
 
-// Dicas de senha exibidas no cadastro e na nova senha.
+// Dicas de senha exibidas no cadastro e na nova senha (a mesma regra do backend).
 export function regrasSenha(senha) {
   return [
     { rotulo: '8+ caracteres', ok: senha.length >= 8 },
-    { rotulo: 'Um número', ok: /\d/.test(senha) },
-    { rotulo: 'Um símbolo', ok: /[^A-Za-z0-9]/.test(senha) },
+    { rotulo: 'Uma letra', ok: /\p{L}/u.test(senha) },
+    { rotulo: 'Um número', ok: /\p{N}/u.test(senha) },
+    { rotulo: 'Um símbolo', ok: /[\p{P}\p{S}\p{Z}]/u.test(senha) },
   ]
 }
+
+export const senhaValida = (senha) => regrasSenha(senha).every((r) => r.ok)
 
 // Peças trocadas no reparo: começam pelas peças previstas no orçamento.
 export function pecasDoOrcamento(orcamento) {

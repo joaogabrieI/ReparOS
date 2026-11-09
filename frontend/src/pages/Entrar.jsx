@@ -7,7 +7,7 @@ import { api, guardarToken } from '../services/api'
 const VANTAGENS = ['Fluxo de status com histórico automático', 'Orçamento e avisos pelo WhatsApp', 'OS paradas em destaque']
 
 // Login do técnico (3a).
-export default function Entrar() {
+export default function Entrar({ expirou }) {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [manter, setManter] = useState(true)
@@ -23,6 +23,7 @@ export default function Entrar() {
       guardarToken(token, manter)
       navegar('/')
     } catch (falha) {
+      // 429: passou de 5 tentativas no minuto; a mensagem diz quanto esperar.
       setErro(falha.erros?.email?.[0] ?? falha.erros?.password?.[0] ?? falha.message)
       setEnviando(false)
     }
@@ -52,6 +53,13 @@ export default function Entrar() {
           </div>
         </div>
 
+        {expirou && (
+          <div className="nota" style={{ color: 'var(--color-neutral-400)' }}>
+            <i className="ph ph-clock" style={{ marginTop: 2 }} />
+            Sua sessão expirou após 30 minutos sem uso. Entre de novo para continuar.
+          </div>
+        )}
+
         <div className="field">
           <label htmlFor="l-email">E-mail</label>
           <input id="l-email" className="input" type="email" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -61,7 +69,7 @@ export default function Entrar() {
           <a href="#/esqueci-senha" style={{ position: 'absolute', right: 0, top: 0, fontSize: 12.5, zIndex: 1 }}>
             Esqueci minha senha
           </a>
-          <CampoSenha id="l-senha" rotulo="Senha" valor={senha} onChange={setSenha} erro={erro} />
+          <CampoSenha id="l-senha" rotulo="Senha" valor={senha} onChange={setSenha} erro={erro} autoComplete="current-password" />
         </div>
 
         <label className="check">

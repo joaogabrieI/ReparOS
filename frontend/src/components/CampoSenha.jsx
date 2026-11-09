@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { regrasSenha } from '../data/regras'
 
 // Campo de senha com botão de mostrar/ocultar e, opcionalmente, a força da senha.
-export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, erro, icone, autoFocus }) {
+export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, erro, icone, autoFocus, autoComplete }) {
   const [visivel, setVisivel] = useState(false)
   const regras = regrasSenha(valor)
-  const barras = [0, 1, 3, 4][regras.filter((r) => r.ok).length]
+  const barras = regras.filter((r) => r.ok).length
 
   return (
     <div className="field">
@@ -19,6 +19,7 @@ export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, 
           onChange={(e) => onChange(e.target.value)}
           style={{ paddingRight: 40 }}
           autoFocus={autoFocus}
+          autoComplete={autoComplete}
         />
         {icone ?? (
           <button
@@ -42,7 +43,7 @@ export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, 
               />
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 14, marginTop: 6, fontSize: 12, color: 'var(--color-neutral-400)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 6, fontSize: 12, color: 'var(--color-neutral-400)' }}>
             {regras.map((r) => (
               <span key={r.rotulo} style={{ display: 'flex', gap: 4, alignItems: 'center', color: r.ok ? undefined : 'var(--color-neutral-600)' }}>
                 <i className={`ph ${r.ok ? 'ph-check' : 'ph-minus'}`} style={{ color: r.ok ? 'var(--color-success)' : undefined }} />

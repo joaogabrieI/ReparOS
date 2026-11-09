@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { AcessoCentral, CartaoAcesso } from '../components/AcessoLayout'
+import ErroCampo from '../components/ErroCampo'
+import { pedirLinkNovaSenha } from '../services/auth'
 
 function Titulo({ titulo, children }) {
   return (
@@ -14,11 +16,22 @@ function Titulo({ titulo, children }) {
 export default function RecuperarSenha() {
   const [email, setEmail] = useState('')
   const [enviadoPara, setEnviadoPara] = useState(null)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  // Sem backend por enquanto: o envio só mostra a tela de confirmação.
-  function enviar(e) {
-    e.preventDefault()
-    setEnviadoPara(email.trim() || 'seu e-mail')
+  // A API responde igual com ou sem conta para o e-mail, então a confirmação também é a mesma.
+  async function enviar(e) {
+    e?.preventDefault()
+    setEnviando(true)
+    setErro('')
+    try {
+      await pedirLinkNovaSenha(email.trim())
+      setEnviadoPara(email.trim())
+    } catch (falha) {
+      setErro(falha.erros?.email?.[0] ?? falha.message)
+      setEnviadoPara(null)
+    }
+    setEnviando(false)
   }
 
   if (enviadoPara) {
@@ -35,8 +48,8 @@ export default function RecuperarSenha() {
             <i className="ph ph-info" style={{ marginTop: 2 }} />
             Não chegou? Confira a caixa de spam ou promoções.
           </div>
-          <button className="btn btn-secondary btn-block" style={{ height: 40 }} onClick={() => setEnviadoPara(null)}>
-            Reenviar link
+          <button className="btn btn-secondary btn-block" style={{ height: 40 }} onClick={() => enviar()} disabled={enviando}>
+            {enviando ? 'Reenviando…' : 'Reenviar link'}
           </button>
           <a href="#/entrar" style={{ fontSize: 13, textAlign: 'center' }}>
             Voltar para o login
@@ -60,10 +73,19 @@ export default function RecuperarSenha() {
           <Titulo titulo="Esqueceu a senha?">Informe o e-mail da sua conta. Enviaremos um link para criar uma nova senha.</Titulo>
           <div className="field">
             <label htmlFor="rs-email">E-mail</label>
-            <input id="rs-email" className="input" type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input
+              id="rs-email"
+              className={`input${erro ? ' input-erro' : ''}`}
+              type="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <ErroCampo erros={erro ? [erro] : null} />
           </div>
-          <button type="submit" className="btn btn-primary btn-block" style={{ height: 44 }} >
-            Enviar link de recuperação
+          <button type="submit" className="btn btn-primary btn-block" style={{ height: 44 }} disabled={enviando}>
+            {enviando ? 'Enviando…' : 'Enviar link de recuperação'}
           </button>
         </form>
       </CartaoAcesso>
