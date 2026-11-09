@@ -46,7 +46,7 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-A API fica em http://localhost:8000. O seed cria o técnico `tecnico@reparos.test` (senha `senha123`) com um cliente, um equipamento e uma OS de exemplo.
+A API fica em http://localhost:8000. O seed cria o técnico `tecnico@reparos.test` (senha `Senha@123`) com um cliente, um equipamento e uma OS de exemplo.
 
 ### 4. Frontend
 
@@ -67,7 +67,7 @@ Abra http://localhost:5173 e entre em `#/entrar` com o técnico do seed. Todas a
 - **Detalhe da OS**: cada etapa chama a rota dela (retirada, diagnóstico, orçamento com rascunho e envio, resposta do cliente com o canal, reparo com peças trocadas, pronto, entrega ou devolução sem reparo) e mostra o histórico devolvido pela API. O botão **Enviar WhatsApp** abre o link `wa.me` montado por `/whatsapp`; enviar o orçamento salva, registra o envio e abre a mensagem com a validade.
 - **Clientes**: listagem, busca, ficha, cadastro e edição de clientes e de equipamentos.
 
-Os erros de validação (422) aparecem ao lado de cada campo. O cliente acompanha o reparo sem login em `#/acompanhar` (ou `#/acompanhar/<número da OS>`), com link na tela de entrar. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha`.
+Os erros de validação (422) aparecem ao lado de cada campo. O cliente acompanha o reparo sem login em `#/acompanhar` (ou `#/acompanhar/<número da OS>`), com link na tela de entrar. Cadastro e recuperação de senha ficam em `#/cadastro` e `#/esqueci-senha` e também usam a API: o cadastro já entra na conta criada, e o link de nova senha (enviado para o log em `storage/logs/laravel.log`, já que `MAIL_MAILER=log`) abre `#/nova-senha?token=...&email=...`. Depois de 30 minutos sem uso a sessão expira e a tela de entrar avisa.
 
 ## Estrutura
 
@@ -112,6 +112,10 @@ Regras garantidas pelo banco:
 Regras da aplicação:
 
 - O status só avança para o próximo passo do fluxo (`StatusOrdemServico::proximos()`): Aberta → Aguardando diagnóstico → Diagnóstico realizado → Orçamento enviado → Aguardando aprovação → Em reparo → Pronto para retirada → Entregue. A recusa do orçamento leva a "Orçamento recusado" e dali à entrega sem reparo. Pular ou voltar uma etapa responde 422.
+- Senha do técnico com 8 ou mais caracteres, pelo menos uma letra, um número e um caractere especial, guardada com bcrypt. O link de nova senha vale 60 minutos e uma vez só.
+- Login limitado a 5 tentativas por minuto (por e-mail e IP); cadastro e recuperação de senha também têm limite por IP.
+- A sessão (token Sanctum) expira após 30 minutos sem uso (`SESSAO_MINUTOS`); cada pedido à API renova o prazo.
+- Cada técnico só vê os próprios clientes, equipamentos e OS; registro de outro técnico responde 404.
 - O histórico de status não pode ser alterado nem apagado (o model recusa `update` e `delete`).
 - O orçamento só é lançado depois do diagnóstico e pode ser corrigido até ser enviado; depois do envio, itens, valores e diagnóstico ficam travados. O total é sempre calculado no servidor.
 - No envio, a validade do orçamento é gravada (10 dias por padrão, CDC art. 40). O campo `vencido` indica orçamento pendente com a validade passada.
@@ -124,7 +128,10 @@ Regras da aplicação:
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/api/status` | público | API e banco no ar? |
-| POST | `/api/login` | público | Login do técnico, devolve token |
+| POST | `/api/login` | público | Login do técnico (`email`, `password`), devolve token; até 5 tentativas por minuto por e-mail e IP |
+| POST | `/api/cadastro` | público | Cria a conta da assistência (`nome`, `nome_assistencia`, `telefone`, `email`, `password`, `password_confirmation`) e devolve token |
+| POST | `/api/senha/esqueci` | público | Envia o link de nova senha por e-mail; responde igual com ou sem conta para o e-mail |
+| POST | `/api/senha/redefinir` | público | Troca a senha (`token`, `email`, `password`, `password_confirmation`, `sair_outros` opcional, padrão sim) |
 | GET | `/api/eu` | token | Dados do técnico logado |
 | POST | `/api/logout` | token | Encerra o token atual |
 | GET | `/api/clientes?busca=` | token | Clientes do técnico em ordem de nome, com nº de equipamentos e data da última OS; `busca` filtra por nome ou telefone |
