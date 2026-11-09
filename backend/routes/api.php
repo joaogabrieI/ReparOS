@@ -46,4 +46,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Área do cliente (sem login): acompanhar a OS pelo número. O limite por minuto dificulta
 // adivinhar números de OS de outras pessoas.
-Route::get('/acompanhar/{numero}', AcompanhamentoController::class)->middleware('throttle:20,1');
+Route::get('/acompanhar/{numero}', [AcompanhamentoController::class, 'show'])->middleware('throttle:20,1');
+// O cliente aprova ou recusa o orçamento pela mesma tela; além do número, exige o código que só vai no link do WhatsApp.
+Route::post('/acompanhar/{numero}/orcamento/resposta', [AcompanhamentoController::class, 'responder'])->middleware('throttle:resposta-orcamento');

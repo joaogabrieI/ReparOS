@@ -10,6 +10,7 @@ use App\Models\OrdemServico;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Orçamento da OS: lançamento, envio ao cliente e registro da resposta (RF11, RF12, RF19).
@@ -65,6 +66,7 @@ class OrcamentoController extends Controller
                 'situacao' => SituacaoOrcamento::Pendente,
                 'data_envio' => now(),
                 'validade_ate' => today()->addDays($orcamento->validade_dias),
+                'codigo_resposta' => Str::random(32),
             ]);
             $ordemServico->mudarStatus(StatusOrdemServico::AguardandoAprovacao);
         });
@@ -84,18 +86,11 @@ class OrcamentoController extends Controller
 
         $aprovado = (bool) $dados['aprovado'];
 
-        DB::transaction(function () use ($ordemServico, $orcamento, $dados, $aprovado) {
-            $ordemServico->mudarStatus(
-                $aprovado ? StatusOrdemServico::EmReparo : StatusOrdemServico::OrcamentoRecusado,
-                trim(($aprovado ? 'Orçamento aprovado' : 'Orçamento recusado').' pelo cliente via '.$dados['canal'].'. '.($dados['observacao'] ?? '')),
-            );
-            $orcamento->update([
-                'situacao' => $aprovado ? SituacaoOrcamento::Aprovado : SituacaoOrcamento::Recusado,
-                'data_resposta' => now(),
-                'canal_resposta' => $dados['canal'],
-                'prazo_entrega' => $aprovado ? today()->addWeekdays($orcamento->prazo_dias) : null,
-            ]);
-        });
+        $orcamento->registrarResposta(
+            $aprovado,
+            $dados['canal'],
+            trim(($aprovado ? 'Orçamento aprovado' : 'Orçamento recusado').' pelo cliente via '.$dados['canal'].'. '.($dados['observacao'] ?? '')),
+        );
 
         return response()->json($this->ficha($ordemServico));
     }

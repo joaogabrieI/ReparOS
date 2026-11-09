@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Tecnico;
+use App\Support\LinkFrontend;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Login: no máximo 5 tentativas por minuto para cada e-mail e endereço IP.
-     * Cadastro (10) e recuperação de senha (5): pedidos por minuto por IP.
+     * Cadastro (10), recuperação de senha (5) e resposta ao orçamento pela tela do cliente (10): pedidos por minuto por IP.
      */
     private function limitarTentativas(): void
     {
@@ -53,6 +54,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('senha', fn (Request $request) => Limit::perMinute(5)
             ->by($request->ip())
             ->response($muitas('recuperação de senha')));
+
+        RateLimiter::for('resposta-orcamento', fn (Request $request) => Limit::perMinute(10)
+            ->by($request->ip())
+            ->response($muitas('resposta ao orçamento')));
     }
 
     /**
@@ -73,9 +78,7 @@ class AppServiceProvider extends ServiceProvider
     private function configurarLinkDeNovaSenha(): void
     {
         ResetPassword::createUrlUsing(function (Tecnico $tecnico, string $token) {
-            $frontend = trim(explode(',', config('app.frontend_url'))[0]);
-
-            return $frontend.'/#/nova-senha?'.http_build_query(['token' => $token, 'email' => $tecnico->email]);
+            return LinkFrontend::para('nova-senha', ['token' => $token, 'email' => $tecnico->email]);
         });
 
         ResetPassword::toMailUsing(fn (Tecnico $tecnico, string $token) => (new MailMessage)

@@ -171,6 +171,7 @@ class OrdemServicoController extends Controller
             'telefone' => $mensagem->telefone(),
             'mensagem' => $mensagem->texto(),
             'link' => $mensagem->link(),
+            'acompanhamento' => $mensagem->linkAcompanhamento(),
         ]);
     }
 

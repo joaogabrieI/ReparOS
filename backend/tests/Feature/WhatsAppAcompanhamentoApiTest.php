@@ -129,6 +129,36 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         $this->assertStringContainsString('disponível para devolução, sem reparo', $this->whatsapp($os)['mensagem']);
     }
 
+    public function test_mensagem_traz_o_link_da_tela_de_acompanhamento(): void
+    {
+        config(['app.frontend_url' => 'https://reparos.exemplo.com.br/, http://localhost:5173']);
+        $os = $this->criarOs();
+        $link = "https://reparos.exemplo.com.br/#/acompanhar/{$os->numero}";
+
+        $resposta = $this->whatsapp($os);
+        $this->assertSame($link, $resposta['acompanhamento']);
+        $this->assertStringContainsString("Acompanhe o reparo pelo link: {$link}\n\nAssistência Teste", $resposta['mensagem']);
+    }
+
+    public function test_link_do_orcamento_leva_o_codigo_para_responder_e_some_depois_da_resposta(): void
+    {
+        $os = $this->criarOs();
+        $this->enviarOrcamento($os);
+        $codigo = $os->orcamento()->first()->codigo_resposta;
+        $this->assertSame(32, strlen($codigo));
+
+        $resposta = $this->whatsapp($os);
+        $this->assertStringEndsWith("/#/acompanhar/{$os->numero}?codigo={$codigo}", $resposta['acompanhamento']);
+        $this->assertStringContainsString("Para aprovar ou recusar pelo celular, abra: {$resposta['acompanhamento']}", $resposta['mensagem']);
+
+        // O código não sai em nenhuma outra resposta da API.
+        $this->assertStringNotContainsString($codigo, $this->getJson("/api/ordens-servico/{$os->id}")->getContent());
+
+        $this->postJson("/api/ordens-servico/{$os->id}/orcamento/resposta", ['aprovado' => true, 'canal' => 'whatsapp'])->assertOk();
+        $this->assertStringNotContainsString('codigo=', $this->whatsapp($os)['mensagem']);
+        $this->assertNull($os->orcamento()->first()->codigo_resposta);
+    }
+
     public function test_whatsapp_de_os_de_outro_tecnico_responde_404(): void
     {
         $alheia = $this->criarOs($this->criarTecnico('outro-whatsapp@reparos.test'));
