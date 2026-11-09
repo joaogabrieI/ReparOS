@@ -40,8 +40,15 @@ function App() {
   if (caminho === '/esqueci-senha') return <RecuperarSenha />
   if (caminho === '/nova-senha') return <NovaSenha token={params.get('token') ?? ''} email={params.get('email') ?? ''} />
 
-  // Área do cliente, sem login: andamento da OS pelo número.
-  if (partes[0] === 'acompanhar') return <Acompanhar key={partes[1] ?? ''} numeroInicial={partes[1] ? decodeURIComponent(partes[1]) : ''} />
+  // Área do cliente, sem login: andamento da OS pelo número. O código do link do WhatsApp permite responder ao orçamento.
+  if (partes[0] === 'acompanhar')
+    return (
+      <Acompanhar
+        key={partes[1] ?? ''}
+        numeroInicial={partes[1] ? decodeURIComponent(partes[1]) : ''}
+        codigo={params.get('codigo') ?? ''}
+      />
+    )
 
   return (
     <DadosProvider caminho={caminho}>

@@ -48,3 +48,12 @@ export function mensagemWhatsApp(id) {
 export function acompanharOrdem(numero) {
   return api(`/acompanhar/${encodeURIComponent(numero.trim())}`, { token: null })
 }
+
+// O cliente aprova ou recusa o orçamento pela tela, com o código que veio no link do WhatsApp.
+export function responderOrcamentoCliente(numero, codigo, aprovado) {
+  return api(`/acompanhar/${encodeURIComponent(numero.trim())}/orcamento/resposta`, {
+    method: 'POST',
+    body: { codigo, aprovado },
+    token: null,
+  })
+}

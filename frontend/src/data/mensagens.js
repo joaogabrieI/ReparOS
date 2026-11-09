@@ -34,6 +34,7 @@ export function mensagemOrcamento(ordem, orcamento) {
     .join('\n')
 }
 
-export function mensagemLembreteAprovacao(ordem) {
-  return `Olá, ${primeiroNome(ordem)}! Passando para lembrar do orçamento da OS ${ordem.numero} (${nomeCurto(ordem)}), enviado em ${data(ordem.orcamento?.data_envio)}. Podemos seguir com o reparo?`
+export function mensagemLembreteAprovacao(ordem, linkAcompanhamento) {
+  const texto = `Olá, ${primeiroNome(ordem)}! Passando para lembrar do orçamento da OS ${ordem.numero} (${nomeCurto(ordem)}), enviado em ${data(ordem.orcamento?.data_envio)}. Podemos seguir com o reparo?`
+  return linkAcompanhamento ? `${texto}\n\nPara aprovar ou recusar pelo celular, abra: ${linkAcompanhamento}` : texto
 }

@@ -43,18 +43,16 @@ const CANAIS = [
   ['presencial', 'Presencial'],
 ]
 
-function abrirWhatsApp(ordem, mensagem) {
-  window.open(linkWhatsApp(ordem.cliente.telefone_whatsapp, mensagem), '_blank', 'noopener')
-}
-
 // Abre a aba antes de chamar a API (depois de um await o navegador bloquearia o pop-up) e então
 // leva a aba para o link wa.me com a mensagem do status atual montada pelo backend (RF18).
 // `antes` roda primeiro, por exemplo para registrar o envio do orçamento.
-async function abrirWhatsAppDaApi(id, antes) {
+// `montar` troca a mensagem do status por outra, recebendo a resposta da API (com o link de acompanhamento).
+async function abrirWhatsAppDaApi(id, antes, montar) {
   const janela = window.open('', '_blank')
   try {
     if (antes) await antes()
-    const { link } = await mensagemWhatsApp(id)
+    const resposta = await mensagemWhatsApp(id)
+    const link = montar ? montar(resposta) : resposta.link
     if (janela) {
       janela.opener = null
       janela.location.href = link
@@ -397,6 +395,17 @@ function PainelOrcamento({ itens, setItens, prazo, setPrazo, acao, onSalvar, sal
 function PainelResposta({ ordem, onResponder, refAcao }) {
   const { orcamento } = ordem
   const parada = estaParada(ordem)
+  const acao = useAcao()
+
+  // O lembrete leva o link da tela de acompanhamento, onde o cliente aprova ou recusa sozinho.
+  function cobrarResposta() {
+    acao.rodar(() =>
+      abrirWhatsAppDaApi(ordem.id, null, ({ acompanhamento }) =>
+        linkWhatsApp(ordem.cliente.telefone_whatsapp, mensagemLembreteAprovacao(ordem, acompanhamento)),
+      ),
+    )
+  }
+
   return (
     <div className="painel-acao" ref={refAcao} tabIndex={-1}>
       <Cabecalho
@@ -420,9 +429,14 @@ function PainelResposta({ ordem, onResponder, refAcao }) {
         </span>
         <span style={{ fontSize: 22, fontWeight: 500 }}>{moeda(totalOrcamento(orcamento))}</span>
       </div>
+      <div className="nota" style={{ alignItems: 'center' }}>
+        <i className="ph ph-link" style={{ color: 'var(--color-accent-300)' }} />
+        <span>O cliente também pode aprovar ou recusar pelo link de acompanhamento enviado no WhatsApp; a resposta aparece aqui sozinha.</span>
+      </div>
+      <ErroAcao acao={acao} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         {parada && (
-          <button className="btn btn-ghost" style={{ marginRight: 'auto' }} onClick={() => abrirWhatsApp(ordem, mensagemLembreteAprovacao(ordem))}>
+          <button className="btn btn-ghost" style={{ marginRight: 'auto' }} onClick={cobrarResposta}>
             <i className="ph ph-whatsapp-logo" />
             Cobrar resposta
           </button>
