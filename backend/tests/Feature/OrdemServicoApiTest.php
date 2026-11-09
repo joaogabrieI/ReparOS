@@ -93,7 +93,8 @@ class OrdemServicoApiTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^OS-\d{8}-[A-Z0-9]{5}$/', $resposta->json('numero'));
         $this->assertNotNull($resposta->json('data_abertura'));
-        $this->assertStringStartsWith('2026-11-10T14:00', $resposta->json('retirada_agendada'));
+        // 14:00 em Brasília (fuso da aplicação) volta em UTC no JSON.
+        $this->assertStringStartsWith('2026-11-10T17:00', $resposta->json('retirada_agendada'));
     }
 
     public function test_valida_abertura(): void

@@ -119,6 +119,7 @@ Regras da aplicação:
 - O histórico de status não pode ser alterado nem apagado (o model recusa `update` e `delete`).
 - O orçamento só é lançado depois do diagnóstico e pode ser corrigido até ser enviado; depois do envio, itens, valores e diagnóstico ficam travados. O total é sempre calculado no servidor.
 - No envio, a validade do orçamento é gravada (10 dias por padrão, CDC art. 40). O campo `vencido` indica orçamento pendente com a validade passada.
+- O backend usa o horário de Brasília (`APP_TIMEZONE=America/Sao_Paulo`) para gravar datas, calcular "hoje" e montar as mensagens; o JSON da API devolve as datas em ISO 8601 (UTC).
 - Uma OS está parada quando passa mais de 3 dias na mesma etapa sem ser entregue (`dias_na_etapa` e `parada` em toda OS).
 - O WhatsApp não é enviado pelo servidor: a API monta a mensagem do status atual (retirada, orçamento com itens, total, prazo e validade, reparo, pronto, devolução sem reparo, entrega), assinada com o nome da assistência, e o link `wa.me`; o técnico revisa e envia.
 - O prazo é combinado em dias úteis após a aprovação (`prazo_dias`); na aprovação ele vira a data `prazo_entrega`. A resposta do cliente guarda a data e o canal (WhatsApp, telefone ou presencial).
