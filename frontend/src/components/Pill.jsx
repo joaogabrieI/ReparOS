@@ -1,7 +1,7 @@
 import { infoStatus } from '../data/status'
 
-// Etiqueta colorida com o status da OS.
-export default function Pill({ status }) {
+// Etiqueta colorida com o status da OS. `rotulo` (status_rotulo da API) troca o nome, ex.: "Pronto para entrega".
+export default function Pill({ status, rotulo }) {
   const info = infoStatus(status)
   const h = info.matiz
   const estilo =
@@ -22,7 +22,7 @@ export default function Pill({ status }) {
         ...estilo,
       }}
     >
-      {info.rotulo}
+      {rotulo ?? info.rotulo}
     </span>
   )
 }

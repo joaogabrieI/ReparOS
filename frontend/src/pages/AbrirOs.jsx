@@ -6,9 +6,9 @@ import ErroCampo from '../components/ErroCampo'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { dataHora, diaMes, nomeEquipamento, telefone, telefoneNormalizado } from '../data/formato'
+import { agoraLocal, dataHora, diaMes, jaPassou, nomeEquipamento, telefone, telefoneNormalizado } from '../data/formato'
 import { EQUIPAMENTO_VAZIO } from '../data/regras'
-import { iconeEquipamento } from '../data/status'
+import { FORMAS_DEVOLUCAO, iconeEquipamento } from '../data/status'
 import { buscarCliente, salvarCliente } from '../services/clientes'
 import { salvarEquipamento } from '../services/equipamentos'
 import { abrirOrdem } from '../services/ordens'
@@ -91,7 +91,7 @@ function LinhaResumo({ rotulo, children }) {
 // Abertura de OS: cliente, equipamento, problema relatado e retirada combinada (RF02, RF05, RF07, RF08).
 // Clientes e equipamentos vêm da API; um equipamento novo é cadastrado antes de abrir a OS.
 export default function AbrirOs({ clienteInicial }) {
-  const { clientes, recarregar } = useDados()
+  const { clientes, recarregar, usuario, usuarios } = useDados()
   const [clienteId, setClienteId] = useState(clienteInicial ?? null)
   const [ficha, setFicha] = useState(null)
   const [busca, setBusca] = useState('')
@@ -101,6 +101,10 @@ export default function AbrirOs({ clienteInicial }) {
   const [problema, setProblema] = useState('')
   const [retiradaData, setRetiradaData] = useState('')
   const [retiradaHora, setRetiradaHora] = useState('')
+  // Vazio = quem está abrindo a OS fica responsável.
+  const [responsavelId, setResponsavelId] = useState('')
+  // Já dá para dizer se o equipamento volta por retirada ou entrega; pode ser trocado depois, até a entrega.
+  const [formaDevolucao, setFormaDevolucao] = useState('retirada')
   const [agora] = useState(() => new Date().toISOString())
   const [erros, setErros] = useState({})
   const [errosEquip, setErrosEquip] = useState({})
@@ -147,6 +151,7 @@ export default function AbrirOs({ clienteInicial }) {
     setErroGeral('')
     if (!cliente) return setErroGeral('Escolha o cliente.')
     if (!retiradaData || !retiradaHora) return setErros({ retirada_agendada: ['Informe a data e o horário combinados para a retirada.'] })
+    if (jaPassou(`${retiradaData}T${retiradaHora}`)) return setErros({ retirada_agendada: ['A retirada combinada não pode ser em uma data que já passou.'] })
 
     setEnviando(true)
     try {
@@ -170,6 +175,8 @@ export default function AbrirOs({ clienteInicial }) {
         equipamento_id: idEquipamento,
         problema_relatado: problema,
         retirada_agendada: new Date(`${retiradaData}T${retiradaHora}`).toISOString(),
+        responsavel_id: responsavelId ? Number(responsavelId) : null,
+        forma_devolucao: formaDevolucao,
       })
       recarregar()
       navegar(`/os/${os.id}`)
@@ -298,6 +305,7 @@ export default function AbrirOs({ clienteInicial }) {
                 <input
                   id="o-data"
                   type="date"
+                  min={agoraLocal().slice(0, 10)}
                   className={`input${erros.retirada_agendada ? ' input-erro' : ''}`}
                   value={retiradaData}
                   onChange={(e) => setRetiradaData(e.target.value)}
@@ -322,6 +330,45 @@ export default function AbrirOs({ clienteInicial }) {
               </div>
             </div>
             <ErroCampo erros={erros.retirada_agendada} />
+            <div className="field" style={{ maxWidth: 360 }}>
+              <label htmlFor="o-responsavel">Técnico responsável</label>
+              <select
+                id="o-responsavel"
+                className={`input${erros.responsavel_id ? ' input-erro' : ''}`}
+                value={responsavelId}
+                onChange={(e) => setResponsavelId(e.target.value)}
+              >
+                <option value="">{usuario ? `${usuario.nome} (você)` : 'Você'}</option>
+                {usuarios
+                  .filter((u) => u.ativo && u.id !== usuario?.id)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nome}
+                    </option>
+                  ))}
+              </select>
+              <ErroCampo erros={erros.responsavel_id} />
+            </div>
+            <div className="field" style={{ maxWidth: 360 }}>
+              <label htmlFor="o-devolucao">Devolução do equipamento</label>
+              <select
+                id="o-devolucao"
+                className={`input${erros.forma_devolucao || erros.endereco_entrega ? ' input-erro' : ''}`}
+                value={formaDevolucao}
+                onChange={(e) => setFormaDevolucao(e.target.value)}
+                aria-describedby="o-devolucao-dica"
+              >
+                {FORMAS_DEVOLUCAO.map((f) => (
+                  <option key={f.valor} value={f.valor}>
+                    {f.descricao}
+                  </option>
+                ))}
+              </select>
+              <span id="o-devolucao-dica" style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+                A entrega usa o endereço do cadastro do cliente. Dá para trocar depois, até a entrega.
+              </span>
+              <ErroCampo erros={erros.forma_devolucao ?? erros.endereco_entrega} />
+            </div>
           </Etapa>
         </div>
 
@@ -336,6 +383,7 @@ export default function AbrirOs({ clienteInicial }) {
               <Pill status="aberta" />
             </LinhaResumo>
             <div style={{ height: 1, background: 'var(--color-neutral-800)' }} />
+            <LinhaResumo rotulo="Responsável">{usuarios.find((u) => String(u.id) === responsavelId)?.nome ?? usuario?.nome ?? '—'}</LinhaResumo>
             <LinhaResumo rotulo="Cliente">{cliente?.nome ?? '—'}</LinhaResumo>
             <LinhaResumo rotulo="Equipamento">{(cliente && nomeEquipResumo) || '—'}</LinhaResumo>
             <LinhaResumo rotulo="Retirada">

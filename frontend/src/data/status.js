@@ -23,6 +23,23 @@ export function infoStatus(valor) {
   return STATUS.find((s) => s.valor === valor)
 }
 
+// Nome do status na tela. Com entrega no endereço do cliente, a OS pronta aparece como "Pronto para entrega"
+// (o valor continua pronto_para_retirada, como no backend).
+export function rotuloStatus(valor, formaDevolucao) {
+  if (valor === 'pronto_para_retirada' && formaDevolucao === 'entrega') return 'Pronto para entrega'
+  return infoStatus(valor)?.rotulo
+}
+
+// Como o equipamento volta para o cliente (FormaDevolucao no backend).
+export const FORMAS_DEVOLUCAO = [
+  { valor: 'retirada', rotulo: 'Cliente retira', descricao: 'Cliente retira na assistência', icone: 'ph-storefront' },
+  { valor: 'entrega', rotulo: 'Entregar no endereço', descricao: 'Entrega no endereço do cliente', icone: 'ph-truck' },
+]
+
+export function infoDevolucao(valor) {
+  return FORMAS_DEVOLUCAO.find((f) => f.valor === valor) ?? FORMAS_DEVOLUCAO[0]
+}
+
 export function corStatus(valor) {
   const matiz = infoStatus(valor)?.matiz
   if (matiz == null) return 'var(--color-neutral-500)'

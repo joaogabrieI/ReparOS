@@ -3,13 +3,14 @@ import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
+import { useDados } from '../data/contexto'
 import { diaMes, diaMesHora } from '../data/formato'
 import { detalhar } from '../data/regras'
 import { iconeEquipamento, STATUS, TIPOS_EQUIPAMENTO } from '../data/status'
 import { listarOrdens } from '../services/ordens'
 
-const GRID = '150px 100px minmax(0,1fr) minmax(0,1.2fr) 220px 150px'
-const FILTROS_VAZIOS = { busca: '', tipo: '', status: '', de: '', ate: '', paradas: false }
+const GRID = '150px 90px minmax(0,1fr) minmax(0,1.1fr) minmax(0,0.9fr) 200px 130px'
+const FILTROS_VAZIOS = { busca: '', tipo: '', status: '', responsavel: '', de: '', ate: '', paradas: false }
 
 const ORDENACOES = {
   recentes: 'Abertura (recentes)',
@@ -19,8 +20,10 @@ const ORDENACOES = {
 
 // Busca de todas as OS, inclusive entregues, por número, cliente, equipamento, status e período (RF23, RF24).
 // Os filtros e a ordenação são aplicados na API (/api/ordens-servico).
-export default function BuscarOs() {
-  const [filtros, setFiltros] = useState(FILTROS_VAZIOS)
+// `minhas`: abre já filtrando as OS em que o usuário logado é o responsável.
+export default function BuscarOs({ minhas = false }) {
+  const { usuarios } = useDados()
+  const [filtros, setFiltros] = useState(() => ({ ...FILTROS_VAZIOS, responsavel: minhas ? 'minhas' : '' }))
   const [ordenacao, setOrdenacao] = useState('recentes')
   const [resultado, setResultado] = useState(null)
   const [erros, setErros] = useState({})
@@ -32,7 +35,13 @@ export default function BuscarOs() {
   useEffect(() => {
     let ativo = true
     const espera = setTimeout(() => {
-      listarOrdens({ ...filtros, ordem: ordenacao })
+      const { responsavel, ...resto } = filtros
+      listarOrdens({
+        ...resto,
+        minhas: responsavel === 'minhas',
+        responsavel_id: responsavel !== 'minhas' ? responsavel : '',
+        ordem: ordenacao,
+      })
         .then((lista) => {
           if (!ativo) return
           setResultado(lista.map(detalhar))
@@ -76,7 +85,7 @@ export default function BuscarOs() {
           style={{
             padding: '14px 16px',
             display: 'grid',
-            gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr) auto auto',
+            gridTemplateColumns: 'minmax(0,1.4fr) repeat(3,minmax(0,1fr))',
             gap: 12,
             alignItems: 'end',
           }}
@@ -109,6 +118,19 @@ export default function BuscarOs() {
             </select>
           </div>
           <div className="field">
+            <label htmlFor="f-responsavel">Responsável</label>
+            <select id="f-responsavel" className="input" value={filtros.responsavel} onChange={mudar('responsavel')}>
+              <option value="">Todos</option>
+              <option value="minhas">Minhas OS</option>
+              {usuarios.map((u) => (
+                <option key={u.id} value={String(u.id)}>
+                  {u.nome}
+                  {u.ativo ? '' : ' (desativado)'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ gridColumn: 'span 2' }}>
             <label>Período de abertura</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input
@@ -128,16 +150,18 @@ export default function BuscarOs() {
               />
             </div>
           </div>
-          <label className="check" style={{ alignItems: 'center', height: 36, whiteSpace: 'nowrap' }}>
-            <input type="checkbox" checked={filtros.paradas} onChange={mudar('paradas')} />
-            <span className="caixa" style={{ marginTop: 0 }}>
-              <i className="ph ph-check" />
-            </span>
-            Só paradas
-          </label>
-          <button className="btn btn-ghost" onClick={() => setFiltros(FILTROS_VAZIOS)}>
-            Limpar
-          </button>
+          <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <label className="check" style={{ alignItems: 'center', height: 36, whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={filtros.paradas} onChange={mudar('paradas')} />
+              <span className="caixa" style={{ marginTop: 0 }}>
+                <i className="ph ph-check" />
+              </span>
+              Só paradas
+            </label>
+            <button className="btn btn-ghost" onClick={() => setFiltros(FILTROS_VAZIOS)}>
+              Limpar
+            </button>
+          </div>
         </div>
 
         {(erroPeriodo || erro) && (
@@ -172,6 +196,7 @@ export default function BuscarOs() {
             <span>Abertura</span>
             <span>Cliente</span>
             <span>Equipamento</span>
+            <span>Responsável</span>
             <span>Status</span>
             <span>Última mudança</span>
           </div>
@@ -187,8 +212,11 @@ export default function BuscarOs() {
                 <i className={`ph ${iconeEquipamento(o.equipamento?.tipo)}`} style={{ color: 'var(--color-neutral-500)' }} />
                 <span className="truncar">{o.equipamento?.modelo}</span>
               </span>
+              <span className="truncar" style={{ color: 'var(--color-neutral-400)' }}>
+                {o.responsavel?.nome ?? '—'}
+              </span>
               <span>
-                <Pill status={o.status} />
+                <Pill status={o.status} rotulo={o.status_rotulo} />
               </span>
               <span style={{ color: 'var(--color-neutral-500)' }}>{diaMesHora(o.data_status)}</span>
             </button>

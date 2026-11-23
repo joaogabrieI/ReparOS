@@ -20,14 +20,20 @@ const ITENS = [
   { id: 'clientes', rotulo: 'Clientes', icone: 'ph-users', href: '#/clientes' },
 ]
 
+// Só para o admin: equipe, configurações da assistência e registro de atividade.
+const ITENS_ADMIN = [
+  { id: 'equipe', rotulo: 'Equipe', icone: 'ph-users-three', href: '#/equipe' },
+  { id: 'atividades', rotulo: 'Atividades', icone: 'ph-list-magnifying-glass', href: '#/atividades' },
+]
+
 function iniciais(nome = '') {
   const partes = nome.trim().split(/\s+/)
   return ((partes[0]?.[0] ?? '') + (partes.length > 1 ? partes.at(-1)[0] : '')).toUpperCase()
 }
 
-// Navegação principal da área do técnico (ReparOSSidebar, nav v2).
+// Navegação principal da área da assistência (ReparOSSidebar, nav v2).
 export default function Sidebar({ ativo }) {
-  const { ordens, tecnico } = useDados()
+  const { ordens, usuario, admin } = useDados()
   const pendentes = ordens.filter((o) => o.status !== 'entregue').length
 
   return (
@@ -49,13 +55,13 @@ export default function Sidebar({ ativo }) {
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, minWidth: 0 }}>
           <span className="truncar" style={{ fontWeight: 600, fontSize: 14.5 }}>
-            {tecnico?.nome_assistencia ?? 'ReparOS'}
+            {usuario?.assistencia?.nome ?? 'ReparOS'}
           </span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>ReparOS</span>
         </div>
       </div>
 
-      {ITENS.map((item) => {
+      {[...ITENS, ...(admin ? ITENS_ADMIN : [])].map((item) => {
         const marcado = item.id === ativo
         return (
           <a
@@ -105,16 +111,25 @@ export default function Sidebar({ ativo }) {
         }}
       >
         <span className="avatar" style={{ width: 30, height: 30, fontSize: 12, background: 'var(--color-neutral-800)', color: 'var(--color-neutral-200)' }}>
-          {iniciais(tecnico?.nome)}
+          {iniciais(usuario?.nome)}
         </span>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
           <span className="truncar" style={{ fontSize: 13 }}>
-            {tecnico?.nome ?? '…'}
+            {usuario?.nome ?? '…'}
           </span>
-          <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>Técnico</span>
+          <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>{usuario?.perfil_rotulo ?? ''}</span>
         </div>
         <a className="btn btn-icon" style={{ width: 30, height: 30, color: 'var(--color-neutral-500)' }} href="#/entrar" onClick={sair} title="Sair" aria-label="Sair">
           <i className="ph ph-sign-out" />
+        </a>
+      </div>
+      {/* Termos e política sempre disponíveis no sistema (Marco Civil, art. 7º, XI). */}
+      <div style={{ display: 'flex', gap: 12, padding: '0 8px 4px', fontSize: 11.5 }}>
+        <a href="#/termos" target="_blank" rel="noreferrer" style={{ color: 'var(--color-neutral-500)' }}>
+          Termos de uso
+        </a>
+        <a href="#/privacidade" target="_blank" rel="noreferrer" style={{ color: 'var(--color-neutral-500)' }}>
+          Privacidade
         </a>
       </div>
     </aside>

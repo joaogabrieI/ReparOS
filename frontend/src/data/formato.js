@@ -90,3 +90,14 @@ export function dataIso(iso) {
   const d = new Date(iso)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+
+// Agora, no formato de <input type="datetime-local"> (horário local, sem segundos): mínimo das datas combinadas.
+export function agoraLocal() {
+  const d = new Date()
+  return `${dataIso(d.toISOString())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Data e hora da tela ("aaaa-mm-ddThh:mm") antes do minuto atual. Mesma regra da API para retirada e entrega combinadas.
+export function jaPassou(valorLocal) {
+  return Boolean(valorLocal) && valorLocal < agoraLocal()
+}

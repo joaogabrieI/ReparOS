@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
 import { useDados } from '../data/contexto'
-import { data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, telefone, tempoNaEtapa, totalOrcamento } from '../data/formato'
+import { agoraLocal, data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, telefone, tempoNaEtapa, totalOrcamento } from '../data/formato'
 import { mensagemLembreteAprovacao, mensagemOrcamento } from '../data/mensagens'
 import { detalhar, estaParada, lerPecas, pecasDoOrcamento, proximoStatus, textoPecas } from '../data/regras'
-import { corStatus, FLUXO, iconeEquipamento, infoStatus } from '../data/status'
+import { corStatus, FLUXO, FORMAS_DEVOLUCAO, iconeEquipamento, infoDevolucao, infoStatus, rotuloStatus } from '../data/status'
+import { listarEquipamentos } from '../services/equipamentos'
 import {
   buscarOrdem,
+  editarOrdem,
   enviarOrcamento,
   marcarPronto,
   mensagemWhatsApp,
@@ -17,6 +19,8 @@ import {
   registrarRetirada,
   responderOrcamento,
   salvarOrcamento,
+  trocarResponsavel,
+  voltarEtapa,
 } from '../services/ordens'
 
 const PERIGO = 'oklch(0.84 0.11 25)'
@@ -47,6 +51,100 @@ const CANAIS = [
 // leva a aba para o link wa.me com a mensagem do status atual montada pelo backend (RF18).
 // `antes` roda primeiro, por exemplo para registrar o envio do orçamento.
 // `montar` troca a mensagem do status por outra, recebendo a resposta da API (com o link de acompanhamento).
+// Valor de <input type="datetime-local"> no horário local.
+const dataHoraLocal = (iso) => (iso ? `${dataIso(iso)}T${hora(iso)}` : '')
+
+// Retirada ou entrega do equipamento, como está gravada na OS, no formato dos campos da tela.
+function devolucaoDaOrdem(ordem) {
+  return {
+    forma: ordem.forma_devolucao ?? 'retirada',
+    endereco: ordem.endereco_entrega ?? '',
+    agendada: dataHoraLocal(ordem.entrega_agendada),
+  }
+}
+
+// Campos que a API recebe. Endereço vazio na entrega: a API usa o endereço do cadastro do cliente.
+function dadosDevolucao(v) {
+  const entrega = v.forma === 'entrega'
+  return {
+    forma_devolucao: v.forma,
+    endereco_entrega: entrega ? v.endereco.trim() || null : null,
+    entrega_agendada: entrega && v.agendada ? new Date(v.agendada).toISOString() : null,
+  }
+}
+
+const CAMPOS_DEVOLUCAO = ['forma_devolucao', 'endereco_entrega', 'entrega_agendada']
+
+// Escolha entre o cliente retirar na assistência ou receber o equipamento no endereço dele.
+function CamposDevolucao({ id, valor, onChange, erros, enderecoCliente }) {
+  const mudar = (campo) => (e) => onChange({ ...valor, [campo]: e.target.value })
+  const entrega = valor.forma === 'entrega'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="field">
+        <span id={`${id}-forma`} style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>
+          Como o equipamento volta para o cliente
+        </span>
+        <div className="seg" style={{ display: 'flex' }} role="radiogroup" aria-labelledby={`${id}-forma`}>
+          {FORMAS_DEVOLUCAO.map((f) => (
+            <label key={f.valor} className="seg-opt" style={{ flex: 1, justifyContent: 'center' }}>
+              <input type="radio" name={`${id}-forma`} checked={valor.forma === f.valor} onChange={() => onChange({ ...valor, forma: f.valor })} />
+              <i className={`ph ${f.icone}`} />
+              {f.rotulo}
+            </label>
+          ))}
+        </div>
+        <ErroCampo erros={erros.forma_devolucao} />
+      </div>
+      {entrega && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 210px', gap: 10 }}>
+          <div className="field">
+            <label htmlFor={`${id}-endereco`}>Endereço de entrega</label>
+            <input
+              id={`${id}-endereco`}
+              className={`input${erros.endereco_entrega ? ' input-erro' : ''}`}
+              placeholder={enderecoCliente ? `Cadastro: ${enderecoCliente}` : 'Rua, número, bairro'}
+              value={valor.endereco}
+              onChange={mudar('endereco')}
+              aria-describedby={`${id}-endereco-dica`}
+            />
+            <span id={`${id}-endereco-dica`} style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+              {enderecoCliente ? 'Em branco, usa o endereço do cadastro do cliente.' : 'O cliente não tem endereço no cadastro.'}
+            </span>
+            <ErroCampo erros={erros.endereco_entrega} />
+          </div>
+          <div className="field">
+            <label htmlFor={`${id}-agendada`}>Entrega combinada para</label>
+            <input
+              id={`${id}-agendada`}
+              type="datetime-local"
+              min={agoraLocal()}
+              className={`input${erros.entrega_agendada ? ' input-erro' : ''}`}
+              value={valor.agendada}
+              onChange={mudar('agendada')}
+            />
+            <ErroCampo erros={erros.entrega_agendada} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Resumo da forma de devolução gravada, para os painéis e o cartão de apoio.
+function linhasDevolucao(ordem) {
+  const entrega = ordem.forma_devolucao === 'entrega'
+  return [
+    ['Forma', infoDevolucao(ordem.forma_devolucao).descricao],
+    ...(entrega
+      ? [
+          ['Endereço', ordem.endereco_entrega || '—'],
+          ['Combinada', ordem.entrega_agendada ? dataHora(ordem.entrega_agendada).replace(' ', ' às ') : 'sem horário'],
+        ]
+      : []),
+  ]
+}
+
 async function abrirWhatsAppDaApi(id, antes, montar) {
   const janela = window.open('', '_blank')
   try {
@@ -99,7 +197,7 @@ function ErroAcao({ acao, campos = [] }) {
   ) : null
 }
 
-function PillGrande({ status }) {
+function PillGrande({ status, rotulo }) {
   const h = infoStatus(status).matiz
   const estilo =
     h == null
@@ -108,7 +206,7 @@ function PillGrande({ status }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 28, padding: '0 12px', borderRadius: 999, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', ...estilo }}>
       <i className="ph-fill ph-circle" style={{ fontSize: 8 }} />
-      {infoStatus(status).rotulo}
+      {rotulo ?? infoStatus(status).rotulo}
     </span>
   )
 }
@@ -158,7 +256,7 @@ function Etapas({ ordem }) {
   const recusada = ordem.status === 'orcamento_recusado'
   const atual = recusada ? FLUXO.indexOf('aguardando_aprovacao') : FLUXO.indexOf(ordem.status)
   const encerrada = ordem.status === 'entregue'
-  const proxima = PROXIMO[ordem.status]?.etapa ?? infoStatus(proximoStatus(ordem.status) ?? 'entregue').rotulo
+  const proxima = PROXIMO[ordem.status]?.etapa ?? rotuloStatus(proximoStatus(ordem.status) ?? 'entregue', ordem.forma_devolucao)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -189,7 +287,7 @@ function Etapas({ ordem }) {
                 }}
               >
                 <i className={`ph ${feita ? 'ph-check' : corrente ? 'ph-circle' : 'ph-lock-simple'}`} style={{ fontSize: 12 }} />
-                {recusada && corrente ? 'Orçamento recusado' : infoStatus(s).rotulo}
+                {recusada && corrente ? 'Orçamento recusado' : rotuloStatus(s, ordem.forma_devolucao)}
               </span>
             </div>
           )
@@ -198,10 +296,10 @@ function Etapas({ ordem }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-neutral-500)' }}>
         <i className="ph ph-lock-simple" />
         {encerrada ? (
-          'OS encerrada. Agora ela só pode ser consultada.'
+          'OS encerrada. Para corrigir algum dado, use Voltar etapa.'
         ) : (
           <span>
-            Próxima etapa permitida: <span style={{ color: 'var(--color-neutral-200)' }}>{proxima}</span>. As etapas seguem a sequência do fluxo e não podem ser puladas.
+            Próxima etapa permitida: <span style={{ color: 'var(--color-neutral-200)' }}>{proxima}</span>. As etapas seguem a sequência do fluxo e não podem ser puladas; um passo dado por engano pode ser desfeito em Voltar etapa.
           </span>
         )}
       </div>
@@ -454,8 +552,9 @@ function PainelResposta({ ordem, onResponder, refAcao }) {
   )
 }
 
-function PainelReparo({ ordem, atualizar, refAcao }) {
+function PainelReparo({ ordem, atualizar, refAcao, enderecoCliente }) {
   const [servico, setServico] = useState(ordem.servico_executado ?? '')
+  const [devolucao, setDevolucao] = useState(() => devolucaoDaOrdem(ordem))
   const [pecas, setPecas] = useState(() => {
     const previstas = pecasDoOrcamento(ordem.orcamento)
     if (!ordem.pecas_trocadas) return previstas.map((p) => ({ ...p, trocada: true }))
@@ -529,7 +628,10 @@ function PainelReparo({ ordem, atualizar, refAcao }) {
         ))}
         <ErroCampo erros={acao.erros.pecas_trocadas} />
       </div>
-      <ErroAcao acao={acao} campos={['servico_executado', 'pecas_trocadas']} />
+      <div style={{ paddingTop: 12, borderTop: '1px solid var(--color-neutral-800)' }}>
+        <CamposDevolucao id="r-dev" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={enderecoCliente} />
+      </div>
+      <ErroAcao acao={acao} campos={['servico_executado', 'pecas_trocadas', ...CAMPOS_DEVOLUCAO]} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button className="btn btn-secondary" disabled={acao.enviando} onClick={() => acao.rodar(async () => atualizar(await salvar()))}>
           Salvar rascunho
@@ -540,7 +642,7 @@ function PainelReparo({ ordem, atualizar, refAcao }) {
           onClick={() =>
             acao.rodar(async () => {
               atualizar(await salvar())
-              atualizar(await marcarPronto(ordem.id))
+              atualizar(await marcarPronto(ordem.id, null, dadosDevolucao(devolucao)))
             })
           }
         >
@@ -552,22 +654,52 @@ function PainelReparo({ ordem, atualizar, refAcao }) {
   )
 }
 
-function PainelConcluido({ ordem, refAcao }) {
+// Retirada ou entrega escolhida, com o botão para trocar enquanto o equipamento não voltou ao cliente.
+function BlocoDevolucao({ ordem, onAlterar }) {
+  const info = infoDevolucao(ordem.forma_devolucao)
+  const entrega = ordem.forma_devolucao === 'entrega'
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-800)' }}>
+      <i className={`ph ${info.icone}`} style={{ fontSize: 18, color: 'var(--color-accent-300)', marginTop: 1 }} />
+      <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 500 }}>{info.descricao}</div>
+        {entrega && (
+          <div style={{ color: 'var(--color-neutral-400)' }}>
+            {ordem.endereco_entrega || 'Sem endereço'}
+            {' · '}
+            {ordem.entrega_agendada ? `combinada para ${dataHora(ordem.entrega_agendada).replace(' ', ' às ')}` : 'horário a combinar'}
+          </div>
+        )}
+      </div>
+      {onAlterar && (
+        <button className="btn btn-ghost" style={{ height: 30 }} onClick={onAlterar}>
+          <i className="ph ph-arrows-left-right" />
+          Trocar
+        </button>
+      )}
+    </div>
+  )
+}
+
+function PainelConcluido({ ordem, refAcao, onAlterarDevolucao }) {
   const entregue = ordem.status === 'entregue'
   const pecas = lerPecas(ordem.pecas_trocadas)
+  const entrega = ordem.forma_devolucao === 'entrega'
   if (ordem.status === 'orcamento_recusado') {
     return (
       <div className="painel-acao" ref={refAcao} tabIndex={-1}>
         <Cabecalho titulo="Orçamento recusado" sub={`Recusa registrada em ${data(ordem.orcamento?.data_resposta)}`} />
         <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-neutral-300)' }}>
-          O reparo não será feito. Registre a entrega quando o equipamento for devolvido ao cliente.
+          O reparo não será feito. {entrega ? 'Registre a entrega quando o equipamento for devolvido no endereço do cliente.' : 'Registre a entrega quando o cliente retirar o equipamento.'}
         </div>
+        <BlocoDevolucao ordem={ordem} onAlterar={onAlterarDevolucao} />
       </div>
     )
   }
   return (
     <div className="painel-acao" ref={refAcao} tabIndex={-1} style={entregue ? { borderColor: 'var(--color-neutral-800)', boxShadow: 'none' } : undefined}>
       <div className="painel-titulo">{entregue ? 'OS entregue' : 'Reparo concluído'}</div>
+      {!entregue && <BlocoDevolucao ordem={ordem} onAlterar={onAlterarDevolucao} />}
       <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-neutral-300)' }}>{ordem.servico_executado || 'Sem reparo: orçamento recusado.'}</div>
       {pecas.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -581,7 +713,7 @@ function PainelConcluido({ ordem, refAcao }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTop: '1px solid var(--color-neutral-800)' }}>
         <span style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
           {entregue
-            ? `Entregue em ${dataHora(ordem.data_entrega)}`
+            ? `${entrega ? 'Entregue no endereço do cliente' : 'Entregue'} em ${dataHora(ordem.data_entrega)}`
             : `Pronto desde ${diaMesHora(ordem.data_status).replace(' ', ' às ')}`}
         </span>
         {ordem.orcamento && <span style={{ fontSize: 22, fontWeight: 500 }}>{moeda(totalOrcamento(ordem.orcamento))}</span>}
@@ -696,14 +828,16 @@ function DialogoEntrega({ ordem, onFechar, atualizar }) {
   const [recebidoPor, setRecebidoPor] = useState(`${ordem.cliente.nome} (cliente)`)
   const acao = useAcao()
   const semReparo = ordem.status === 'orcamento_recusado'
+  const entrega = ordem.forma_devolucao === 'entrega'
 
   function confirmar() {
     acao.rodar(async () => {
       const quem = recebidoPor.trim()
+      const como = entrega ? (semReparo ? 'Devolvido sem reparo no endereço do cliente' : 'Entregue no endereço do cliente') : semReparo ? 'Devolvido sem reparo' : 'Retirado pelo cliente na assistência'
       atualizar(
         await registrarEntrega(ordem.id, {
           data_entrega: dia && horario ? new Date(`${dia}T${horario}`).toISOString() : null,
-          observacao: quem ? `${semReparo ? 'Devolvido sem reparo' : 'Equipamento entregue'} · recebido por ${quem}` : null,
+          observacao: quem ? `${como} · recebido por ${quem}` : null,
         }),
       )
       onFechar()
@@ -713,10 +847,11 @@ function DialogoEntrega({ ordem, onFechar, atualizar }) {
   return (
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
       <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="de-titulo">
-        <CabecalhoDialogo id="de-titulo" titulo="Registrar entrega" onFechar={onFechar} />
+        <CabecalhoDialogo id="de-titulo" titulo={entrega ? 'Registrar entrega no endereço' : 'Registrar retirada pelo cliente'} onFechar={onFechar} />
         <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
           {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
         </div>
+        <BlocoDevolucao ordem={ordem} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="field">
             <label htmlFor="de-dia">Data da entrega *</label>
@@ -747,6 +882,292 @@ function DialogoEntrega({ ordem, onFechar, atualizar }) {
           <button className="btn btn-primary" disabled={acao.enviando} onClick={confirmar}>
             <i className="ph ph-handshake" />
             Confirmar entrega
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Mesmas regras do backend (EdicaoOrdemServicoRequest): etapas em que cada campo pode ser corrigido.
+const ANTES_DO_DIAGNOSTICO = ['aberta', 'aguardando_diagnostico']
+const COM_DIAGNOSTICO = ['diagnostico_realizado', 'orcamento_enviado', 'aguardando_aprovacao', 'orcamento_recusado', 'em_reparo', 'pronto_para_retirada']
+const COM_REPARO = ['em_reparo', 'pronto_para_retirada']
+
+// Edita os dados da OS sem mudar o status. Só os campos alterados vão para a API, que grava o antes e o
+// depois no registro de atividade, junto com o motivo.
+function DialogoEditar({ ordem, onFechar, onSalvo }) {
+  const { usuarios } = useDados()
+  const status = ordem.status
+  const podeEquipamento = ANTES_DO_DIAGNOSTICO.includes(status)
+  const podeDiagnostico = COM_DIAGNOSTICO.includes(status)
+  const podeReparo = COM_REPARO.includes(status)
+  const inicial = {
+    equipamento_id: String(ordem.equipamento_id ?? ordem.equipamento.id),
+    problema_relatado: ordem.problema_relatado ?? '',
+    retirada_agendada: dataHoraLocal(ordem.retirada_agendada),
+    responsavel_id: String(ordem.responsavel_id ?? ''),
+    diagnostico: ordem.diagnostico ?? '',
+    servico_executado: ordem.servico_executado ?? '',
+    pecas_trocadas: ordem.pecas_trocadas ?? '',
+  }
+  const devolucaoInicial = devolucaoDaOrdem(ordem)
+  const [devolucao, setDevolucao] = useState(devolucaoInicial)
+  const devolucaoMudou = JSON.stringify(dadosDevolucao(devolucao)) !== JSON.stringify(dadosDevolucao(devolucaoInicial))
+  const [campos, setCampos] = useState(inicial)
+  const [motivo, setMotivo] = useState('')
+  const [equipamentos, setEquipamentos] = useState([ordem.equipamento])
+  const acao = useAcao()
+  const opcoes = usuarios.filter((u) => u.ativo || u.id === ordem.responsavel_id)
+
+  useEffect(() => {
+    if (!podeEquipamento) return
+    let ativo = true
+    listarEquipamentos({ clienteId: ordem.cliente.id })
+      .then((lista) => ativo && lista.length && setEquipamentos(lista))
+      .catch(() => {})
+    return () => {
+      ativo = false
+    }
+  }, [podeEquipamento, ordem.cliente.id])
+
+  const mudar = (campo) => (e) => setCampos((atual) => ({ ...atual, [campo]: e.target.value }))
+  const alterados = Object.keys(campos).filter((c) => campos[c] !== inicial[c])
+
+  function salvar() {
+    const dados = {}
+    for (const campo of alterados) {
+      const valor = campos[campo]
+      if (campo === 'equipamento_id' || campo === 'responsavel_id') dados[campo] = Number(valor)
+      else if (campo === 'retirada_agendada') dados[campo] = valor ? new Date(valor).toISOString() : null
+      else dados[campo] = valor
+    }
+    if (devolucaoMudou) Object.assign(dados, dadosDevolucao(devolucao))
+    acao.rodar(async () => {
+      onSalvo(await editarOrdem(ordem.id, { ...dados, motivo: motivo.trim() || null }))
+      onFechar()
+    })
+  }
+
+  const classe = (campo) => `input${acao.erros[campo] ? ' input-erro' : ''}`
+  const CAMPOS = ['equipamento_id', 'problema_relatado', 'retirada_agendada', 'responsavel_id', 'diagnostico', 'servico_executado', 'pecas_trocadas', ...CAMPOS_DEVOLUCAO, 'motivo']
+
+  return (
+    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
+      <div className="dialog" style={{ width: 560, maxHeight: '90vh', overflowY: 'auto' }} role="dialog" aria-modal="true" aria-labelledby="ed-titulo">
+        <CabecalhoDialogo id="ed-titulo" titulo="Editar OS" onFechar={onFechar} />
+        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+          {ordem.numero} · {ordem.cliente.nome} · status continua em {ordem.status_rotulo ?? infoStatus(status).rotulo}
+        </div>
+
+        {podeEquipamento && (
+          <div className="field">
+            <label htmlFor="ed-equipamento">Equipamento *</label>
+            <select id="ed-equipamento" className={classe('equipamento_id')} value={campos.equipamento_id} onChange={mudar('equipamento_id')}>
+              {equipamentos.map((e) => (
+                <option key={e.id} value={String(e.id)}>
+                  {nomeEquipamento(e)}
+                  {e.numero_serie ? ` · nº ${e.numero_serie}` : ''}
+                </option>
+              ))}
+            </select>
+            <ErroCampo erros={acao.erros.equipamento_id} />
+          </div>
+        )}
+
+        <div className="field">
+          <label htmlFor="ed-problema">Problema relatado *</label>
+          <textarea id="ed-problema" className={classe('problema_relatado')} value={campos.problema_relatado} onChange={mudar('problema_relatado')} />
+          <ErroCampo erros={acao.erros.problema_relatado} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: podeEquipamento ? '1fr 1fr' : '1fr', gap: 10 }}>
+          {podeEquipamento && (
+            <div className="field">
+              <label htmlFor="ed-retirada">Retirada combinada</label>
+              <input id="ed-retirada" type="datetime-local" min={agoraLocal()} className={classe('retirada_agendada')} value={campos.retirada_agendada} onChange={mudar('retirada_agendada')} />
+              <ErroCampo erros={acao.erros.retirada_agendada} />
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="ed-responsavel">Técnico responsável *</label>
+            <select id="ed-responsavel" className={classe('responsavel_id')} value={campos.responsavel_id} onChange={mudar('responsavel_id')}>
+              {opcoes.map((u) => (
+                <option key={u.id} value={String(u.id)}>
+                  {u.nome}
+                  {u.ativo ? '' : ' (desativado)'}
+                </option>
+              ))}
+            </select>
+            <ErroCampo erros={acao.erros.responsavel_id} />
+          </div>
+        </div>
+
+        {podeDiagnostico && (
+          <div className="field">
+            <label htmlFor="ed-diagnostico">Diagnóstico *</label>
+            <textarea id="ed-diagnostico" className={classe('diagnostico')} value={campos.diagnostico} onChange={mudar('diagnostico')} />
+            <ErroCampo erros={acao.erros.diagnostico} />
+          </div>
+        )}
+
+        {podeReparo && (
+          <>
+            <div className="field">
+              <label htmlFor="ed-servico">Serviço executado{status === 'pronto_para_retirada' ? ' *' : ''}</label>
+              <textarea id="ed-servico" className={classe('servico_executado')} value={campos.servico_executado} onChange={mudar('servico_executado')} />
+              <ErroCampo erros={acao.erros.servico_executado} />
+            </div>
+            <div className="field">
+              <label htmlFor="ed-pecas">Peças trocadas (uma por linha)</label>
+              <textarea id="ed-pecas" className={classe('pecas_trocadas')} value={campos.pecas_trocadas} onChange={mudar('pecas_trocadas')} />
+              <ErroCampo erros={acao.erros.pecas_trocadas} />
+            </div>
+          </>
+        )}
+
+        <CamposDevolucao id="ed-dev" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={ordem.cliente.endereco} />
+
+        <div className="field">
+          <label htmlFor="ed-motivo">Motivo da correção</label>
+          <input id="ed-motivo" className={classe('motivo')} placeholder="Ex.: cliente explicou melhor o defeito" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+          <ErroCampo erros={acao.erros.motivo} />
+        </div>
+
+        <div className="nota">
+          <i className="ph ph-clock-counter-clockwise" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
+          <span>O valor antigo e o novo de cada campo ficam no registro de atividade, com o seu nome e o motivo. O status não muda.</span>
+        </div>
+        <ErroAcao acao={acao} campos={CAMPOS} />
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onFechar}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" disabled={acao.enviando || (alterados.length === 0 && !devolucaoMudou)} onClick={salvar}>
+            <i className="ph ph-check" />
+            {acao.enviando ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Troca entre retirada e entrega depois de pronto (ou na devolução sem reparo), pela edição da OS:
+// o status não muda e o antes e o depois vão para o registro de atividade.
+function DialogoDevolucao({ ordem, onFechar, onSalvo }) {
+  const [devolucao, setDevolucao] = useState(() => devolucaoDaOrdem(ordem))
+  const acao = useAcao()
+
+  function salvar() {
+    acao.rodar(async () => {
+      onSalvo(await editarOrdem(ordem.id, dadosDevolucao(devolucao)))
+      onFechar()
+    })
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
+      <div className="dialog" style={{ width: 520 }} role="dialog" aria-modal="true" aria-labelledby="dd-titulo">
+        <CabecalhoDialogo id="dd-titulo" titulo="Retirada ou entrega" onFechar={onFechar} />
+        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+          {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
+        </div>
+        <CamposDevolucao id="dd" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={ordem.cliente.endereco} />
+        <div className="nota">
+          <i className="ph ph-whatsapp-logo" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
+          <span>A mensagem do WhatsApp e a tela de acompanhamento do cliente passam a mostrar a nova escolha. Reenvie o aviso ao cliente.</span>
+        </div>
+        <ErroAcao acao={acao} campos={CAMPOS_DEVOLUCAO} />
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onFechar}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" disabled={acao.enviando} onClick={salvar}>
+            <i className="ph ph-check" />
+            {acao.enviando ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Etapa para onde a OS volta (mesma regra de StatusOrdemServico::anterior no backend). O orçamento enviado
+// volta para "Diagnóstico realizado", onde pode ser corrigido; a entrega volta para a etapa de onde veio.
+function etapaAnterior(ordem) {
+  if (ordem.status === 'entregue') {
+    return [...ordem.historico].reverse().find((h) => h.status_novo === 'entregue')?.status_anterior ?? null
+  }
+  return {
+    aguardando_diagnostico: 'aberta',
+    diagnostico_realizado: 'aguardando_diagnostico',
+    orcamento_enviado: 'diagnostico_realizado',
+    aguardando_aprovacao: 'diagnostico_realizado',
+    em_reparo: 'aguardando_aprovacao',
+    orcamento_recusado: 'aguardando_aprovacao',
+    pronto_para_retirada: 'em_reparo',
+  }[ordem.status] ?? null
+}
+
+// O que a volta desfaz, para o usuário saber antes de confirmar.
+const DESFAZ = {
+  aguardando_diagnostico: 'A data da retirada é apagada.',
+  diagnostico_realizado: 'O diagnóstico continua gravado e pode ser corrigido antes de salvar de novo.',
+  orcamento_enviado: 'O orçamento volta a ser rascunho: itens e valores podem ser corrigidos e o link enviado ao cliente deixa de valer.',
+  aguardando_aprovacao: 'O orçamento volta a ser rascunho: itens e valores podem ser corrigidos e o link enviado ao cliente deixa de valer.',
+  em_reparo: 'A aprovação é desfeita e o orçamento volta a aguardar a resposta do cliente, com um link novo.',
+  orcamento_recusado: 'A recusa é desfeita e o orçamento volta a aguardar a resposta do cliente, com um link novo.',
+  pronto_para_retirada: 'As anotações do reparo continuam gravadas.',
+  entregue: 'A data da entrega é apagada e a OS volta a ficar pendente.',
+}
+
+// Volta a OS uma etapa. O histórico ganha um registro novo com o motivo; nada do que já estava lá é apagado.
+function DialogoVoltarEtapa({ ordem, onFechar, onVoltou }) {
+  const [motivo, setMotivo] = useState('')
+  const acao = useAcao()
+  const anterior = etapaAnterior(ordem)
+
+  function confirmar() {
+    acao.rodar(async () => {
+      onVoltou(await voltarEtapa(ordem.id, motivo.trim(), ordem.status))
+      onFechar()
+    })
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
+      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="ve-titulo">
+        <CabecalhoDialogo id="ve-titulo" titulo="Voltar para a etapa anterior" onFechar={onFechar} />
+        <div className="nota" style={{ alignItems: 'center' }}>
+          <i className="ph ph-arrow-u-up-left" style={{ color: 'var(--color-accent-300)' }} />
+          <span>
+            Status passa de {ordem.status_rotulo ?? infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{anterior ? rotuloStatus(anterior, ordem.forma_devolucao) : '—'}</b>.{' '}
+            {DESFAZ[ordem.status]}
+          </span>
+        </div>
+        <div className="field">
+          <label htmlFor="ve-motivo">Motivo *</label>
+          <textarea
+            id="ve-motivo"
+            className={`input${acao.erros.motivo ? ' input-erro' : ''}`}
+            placeholder="Ex.: retirada registrada por engano"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+          />
+          <ErroCampo erros={acao.erros.motivo} />
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>
+          O histórico ganha um novo registro com o motivo e o seu nome. Os registros anteriores continuam lá.
+        </div>
+        <ErroAcao acao={acao} campos={['motivo']} />
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onFechar}>
+            Cancelar
+          </button>
+          <button className="btn btn-secondary btn-perigo" disabled={acao.enviando || !motivo.trim() || !anterior} onClick={confirmar}>
+            <i className="ph ph-arrow-u-up-left" />
+            {acao.enviando ? 'Voltando…' : 'Voltar etapa'}
           </button>
         </div>
       </div>
@@ -787,16 +1208,17 @@ function resumos(ordem) {
     icone: 'ph-stethoscope',
     linhas: [['Causa e o que precisa ser feito', ordem.diagnostico || '—']],
   }
+  const devolucao = { titulo: 'Devolução ao cliente', icone: infoDevolucao(ordem.forma_devolucao).icone, linhas: linhasDevolucao(ordem) }
   const mapa = {
     aberta: [problema, retirada],
     aguardando_diagnostico: [problema, retirada],
     diagnostico_realizado: [diagnostico, problema],
     orcamento_enviado: [diagnostico, retirada],
     aguardando_aprovacao: [diagnostico, retirada],
-    orcamento_recusado: [diagnostico, problema],
+    orcamento_recusado: [diagnostico, devolucao],
     em_reparo: [diagnostico, problema],
-    pronto_para_retirada: [diagnostico, retirada],
-    entregue: [diagnostico, problema],
+    pronto_para_retirada: [diagnostico, devolucao],
+    entregue: [diagnostico, devolucao],
   }
   return mapa[ordem.status]
 }
@@ -812,6 +1234,74 @@ const DESCRICAO_HISTORICO = {
   orcamento_recusado: 'Recusa registrada',
   pronto_para_retirada: 'Reparo concluído',
   entregue: 'OS encerrada',
+}
+
+// Aviso no lugar da ação da etapa para quem não é o responsável pela OS nem admin.
+function AvisoSoConsulta({ ordem }) {
+  return (
+    <div className="painel-acao" style={{ borderColor: 'var(--color-neutral-800)', boxShadow: 'none' }}>
+      <Cabecalho titulo="Somente consulta" sub={`Próxima etapa: ${PROXIMO[ordem.status]?.rotulo ?? '—'}`} />
+      <div className="nota">
+        <i className="ph ph-lock-simple" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
+        <span>
+          Só o técnico responsável ({ordem.responsavel?.nome ?? 'não definido'}) ou um admin pode alterar esta OS. Para assumir a OS, peça a um admin
+          para trocar o responsável.
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// Técnico responsável pela OS: o próprio responsável ou um admin pode trocar, por outro usuário ativo.
+function CartaoResponsavel({ ordem, atualizar, podeTrocar }) {
+  const { usuarios } = useDados()
+  const [trocando, setTrocando] = useState(false)
+  const acao = useAcao()
+  const opcoes = usuarios.filter((u) => u.ativo || u.id === ordem.responsavel_id)
+
+  function escolher(e) {
+    const novo = Number(e.target.value)
+    if (novo === ordem.responsavel_id) return setTrocando(false)
+    acao.rodar(async () => {
+      atualizar(await trocarResponsavel(ordem.id, novo))
+      setTrocando(false)
+    })
+  }
+
+  return (
+    <div className="painel painel-pad" style={{ gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span className="avatar" style={{ width: 38, height: 38, fontSize: 14, background: 'var(--color-neutral-800)', color: 'var(--color-neutral-200)' }}>
+          {inicial(ordem.responsavel?.nome ?? '?')}
+        </span>
+        <div style={{ flex: 1, lineHeight: 1.35, minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>Técnico responsável</div>
+          {trocando ? (
+            <select className="input" aria-label="Técnico responsável" autoFocus value={ordem.responsavel_id ?? ''} onChange={escolher} disabled={acao.enviando}>
+              {opcoes.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome}
+                  {u.ativo ? '' : ' (desativado)'}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="truncar" style={{ fontWeight: 500 }}>
+              {ordem.responsavel?.nome ?? '—'}
+              {ordem.responsavel && !ordem.responsavel.ativo && <span className="muted"> (desativado)</span>}
+            </div>
+          )}
+        </div>
+        {podeTrocar && !trocando && (
+          <button className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setTrocando(true)}>
+            Trocar
+          </button>
+        )}
+      </div>
+      {ordem.criado_por && <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>Aberta por {ordem.criado_por.nome}</div>}
+      <ErroAcao acao={acao} />
+    </div>
+  )
 }
 
 // Histórico automático das mudanças de status (RF22, RF25).
@@ -843,10 +1333,16 @@ function Historico({ ordem }) {
             </div>
             <div style={{ flex: 1, paddingBottom: 12, fontSize: 13, lineHeight: 1.4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontWeight: 500 }}>{h.status_novo_rotulo ?? infoStatus(h.status_novo).rotulo}</span>
+                <span style={{ fontWeight: 500 }}>
+                  {h.retorno && <i className="ph ph-arrow-u-up-left" style={{ marginRight: 4, color: PERIGO }} aria-hidden="true" />}
+                  {h.status_novo_rotulo ?? infoStatus(h.status_novo).rotulo}
+                </span>
                 <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{diaMesHora(h.data_hora)}</span>
               </div>
-              <div style={{ color: 'var(--color-neutral-500)' }}>{h.observacao || DESCRICAO_HISTORICO[h.status_novo]}</div>
+              <div style={{ color: 'var(--color-neutral-500)' }}>
+                {h.retorno ? `Voltou de ${h.status_anterior_rotulo ?? infoStatus(h.status_anterior).rotulo}. Motivo: ${h.observacao}` : h.observacao || DESCRICAO_HISTORICO[h.status_novo]}
+              </div>
+              <div style={{ color: 'var(--color-neutral-600)', fontSize: 12 }}>por {h.usuario?.nome ?? 'cliente, pelo link'}</div>
             </div>
           </div>
         )
@@ -893,7 +1389,7 @@ function CartaoMensagem({ titulo, texto, nota, onEnviar, erro, enviando }) {
 // Detalhe da OS com a ação da etapa atual (RF09 a RF20, RF22, RF24, RF25). Cada ação chama a etapa
 // correspondente da API, que avança o status e grava o histórico; a tela mostra a OS devolvida.
 export default function DetalheOs({ id }) {
-  const { clientes, recarregar } = useDados()
+  const { clientes, recarregar, usuario, admin } = useDados()
   const [ordem, setOrdem] = useState(null)
   const [erroCarga, setErroCarga] = useState('')
   const refAcao = useRef(null)
@@ -932,11 +1428,22 @@ export default function DetalheOs({ id }) {
     return () => {
       ativo = false
     }
-  }, [id, status])
+  }, [id, status, ordem?.forma_devolucao, ordem?.endereco_entrega, ordem?.entrega_agendada])
 
   // As etapas devolvem a OS sem o cliente completo: mantém o equipamento e o cliente já carregados.
   function atualizar(nova) {
     setOrdem((atual) => detalhar({ ...atual, ...nova, equipamento: atual.equipamento }))
+    recarregar()
+  }
+
+  // Edição e volta de etapa devolvem a ficha completa (o equipamento pode ter mudado). A versão nova
+  // remonta o painel da etapa, para ele começar com os dados corrigidos.
+  const [versao, setVersao] = useState(0)
+  function substituir(nova) {
+    setOrdem(detalhar(nova))
+    setItens(nova.orcamento?.itens ?? [])
+    setPrazo(nova.orcamento?.prazo_dias ?? 2)
+    setVersao((v) => v + 1)
     recarregar()
   }
 
@@ -957,9 +1464,11 @@ export default function DetalheOs({ id }) {
   }
 
   const { cliente, equipamento } = ordem
-  const endereco = clientes.find((c) => c.id === cliente.id)?.endereco
+  const endereco = cliente.endereco ?? clientes.find((c) => c.id === cliente.id)?.endereco
   const entregue = status === 'entregue'
-  const proximo = PROXIMO[status]
+  // Só o técnico responsável ou um admin altera a OS (a API recusa os demais com 403).
+  const podeAlterar = admin || (usuario != null && usuario.id === ordem.responsavel_id)
+  const proximo = podeAlterar ? PROXIMO[status] : null
   const waNumero = `55${cliente.telefone_whatsapp.replace(/\D/g, '')}`
 
   function acaoPrincipal() {
@@ -1018,11 +1527,14 @@ export default function DetalheOs({ id }) {
     )
   else if (status === 'orcamento_enviado' || status === 'aguardando_aprovacao')
     painel = <PainelResposta ordem={ordem} refAcao={refAcao} onResponder={(situacao) => setDialogo({ tipo: 'resposta', situacao })} />
-  else if (status === 'em_reparo') painel = <PainelReparo {...props} />
-  else painel = <PainelConcluido ordem={ordem} refAcao={refAcao} />
+  else if (status === 'em_reparo') painel = <PainelReparo {...props} enderecoCliente={endereco} />
+  else painel = <PainelConcluido ordem={ordem} refAcao={refAcao} onAlterarDevolucao={podeAlterar && !entregue ? () => setDialogo({ tipo: 'devolucao' }) : null} />
+  // Quem não é o responsável nem admin só consulta: a ação da etapa dá lugar a um aviso.
+  if (!podeAlterar && ['aberta', 'aguardando_diagnostico', 'diagnostico_realizado', 'orcamento_enviado', 'aguardando_aprovacao', 'em_reparo'].includes(status))
+    painel = <AvisoSoConsulta ordem={ordem} />
 
   let mensagem = null
-  if (status === 'diagnostico_realizado') {
+  if (status === 'diagnostico_realizado' && podeAlterar) {
     mensagem = (
       <CartaoMensagem
         titulo="Mensagem do orçamento"
@@ -1035,7 +1547,7 @@ export default function DetalheOs({ id }) {
   } else if (mensagemApi && ['pronto_para_retirada', 'orcamento_recusado'].includes(status)) {
     mensagem = (
       <CartaoMensagem
-        titulo={status === 'pronto_para_retirada' ? 'Aviso de pronto para retirada' : 'Aviso de devolução sem reparo'}
+        titulo={status === 'pronto_para_retirada' ? `Aviso de ${rotuloStatus(status, ordem.forma_devolucao).toLowerCase()}` : 'Aviso de devolução sem reparo'}
         texto={mensagemApi.mensagem}
         nota={`Abre wa.me/${mensagemApi.telefone} com o texto preenchido. Reenvie se o cliente não responder.`}
         onEnviar={() => acaoWhatsApp.rodar(() => abrirWhatsAppDaApi(id))}
@@ -1099,7 +1611,7 @@ export default function DetalheOs({ id }) {
               <span style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em' }}>
                 {nomeEquipamento(equipamento)}
               </span>
-              <PillGrande status={status} />
+              <PillGrande status={status} rotulo={ordem.status_rotulo} />
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>{subtitulo}</div>
           </div>
@@ -1107,6 +1619,18 @@ export default function DetalheOs({ id }) {
             <i className="ph ph-whatsapp-logo" />
             Enviar WhatsApp
           </button>
+          {podeAlterar && !entregue && (
+            <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'editar' })}>
+              <i className="ph ph-pencil-simple" />
+              Editar
+            </button>
+          )}
+          {podeAlterar && status !== 'aberta' && (
+            <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'voltar' })}>
+              <i className="ph ph-arrow-u-up-left" />
+              Voltar etapa
+            </button>
+          )}
           {proximo && (
             <button className="btn btn-primary" onClick={acaoPrincipal}>
               <i className={`ph ${proximo.icone}`} />
@@ -1125,7 +1649,9 @@ export default function DetalheOs({ id }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 380px', gap: 16, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-            {painel}
+            <div key={versao} style={{ display: 'contents' }}>
+              {painel}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 14 }}>
               {resumos(ordem).map((r) => (
                 <CartaoResumo key={r.titulo} {...r} />
@@ -1152,6 +1678,7 @@ export default function DetalheOs({ id }) {
                 {endereco ?? '—'}
               </div>
             </div>
+            <CartaoResponsavel ordem={ordem} atualizar={atualizar} podeTrocar={podeAlterar} />
             {mensagem}
             <Historico ordem={ordem} />
           </div>
@@ -1162,6 +1689,9 @@ export default function DetalheOs({ id }) {
         <DialogoResposta ordem={ordem} situacaoInicial={dialogo.situacao} onFechar={() => setDialogo(null)} atualizar={atualizar} />
       )}
       {dialogo?.tipo === 'entrega' && <DialogoEntrega ordem={ordem} onFechar={() => setDialogo(null)} atualizar={atualizar} />}
+      {dialogo?.tipo === 'devolucao' && <DialogoDevolucao ordem={ordem} onFechar={() => setDialogo(null)} onSalvo={substituir} />}
+      {dialogo?.tipo === 'editar' && <DialogoEditar ordem={ordem} onFechar={() => setDialogo(null)} onSalvo={substituir} />}
+      {dialogo?.tipo === 'voltar' && <DialogoVoltarEtapa ordem={ordem} onFechar={() => setDialogo(null)} onVoltou={substituir} />}
     </Layout>
   )
 }

@@ -1,6 +1,6 @@
 import { api } from './api'
 
-// Clientes do técnico logado (rotas /api/clientes).
+// Clientes da assistência (rotas /api/clientes).
 export function listarClientes(busca = '') {
   const query = busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : ''
   return api(`/clientes${query}`)

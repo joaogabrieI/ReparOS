@@ -64,7 +64,7 @@ function Indicador({ rotulo, valor, detalhe, icone, matiz, destaque }) {
 // Tela inicial: o que precisa de ação, retiradas, pendentes por status e atividade recente (RF08, RF21, RF22, RF24).
 // Tudo vem da listagem de OS da API; a retirada usa o endereço do cadastro do cliente.
 export default function Inicio() {
-  const { ordens, clientes, tecnico } = useDados()
+  const { ordens, clientes, usuario } = useDados()
   const [agora] = useState(() => new Date())
   const [busca, setBusca] = useState('')
 
@@ -139,7 +139,7 @@ export default function Inicio() {
         <div>
           <div className="pagina-titulo">
             {saudacao(agora)}
-            {tecnico && `, ${tecnico.nome.split(' ')[0]}`}
+            {usuario && `, ${usuario.nome.split(' ')[0]}`}
           </div>
           <div className="pagina-subtitulo">
             {DIAS[agora.getDay()]}, {agora.getDate()} de {MESES[agora.getMonth()]} de {agora.getFullYear()} · {resumoDia}
@@ -208,7 +208,7 @@ export default function Inicio() {
                       </span>
                     </span>
                     <span>
-                      <Pill status={o.status} />
+                      <Pill status={o.status} rotulo={o.status_rotulo} />
                     </span>
                     <span
                       style={{

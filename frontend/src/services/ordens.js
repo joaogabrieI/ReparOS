@@ -1,8 +1,8 @@
 import { api } from './api'
 
-// Ordens de serviço dos clientes do técnico logado (rotas /api/ordens-servico).
+// Ordens de serviço dos clientes da assistência (rotas /api/ordens-servico).
 // Filtros: busca (nº da OS, cliente, telefone, marca ou modelo), status, tipo, de, ate (aaaa-mm-dd),
-// pendentes, paradas e ordem (recentes, antigas ou mudanca).
+// pendentes, paradas, minhas (só as do usuário logado), responsavel_id e ordem (recentes, antigas ou mudanca).
 export function listarOrdens(filtros = {}) {
   const params = new URLSearchParams()
   for (const [campo, valor] of Object.entries(filtros)) {
@@ -18,13 +18,25 @@ export function buscarOrdem(id) {
   return api(`/ordens-servico/${id}`)
 }
 
-// `dados`: equipamento_id, problema_relatado e retirada_agendada.
+// `dados`: equipamento_id, problema_relatado, retirada_agendada e responsavel_id (opcional: quem abre fica responsável).
+// Opcional: forma_devolucao (retirada, o padrão, ou entrega), endereco_entrega e entrega_agendada.
 export function abrirOrdem(dados) {
   return api('/ordens-servico', { method: 'POST', body: dados })
 }
 
+// Corrige dados da OS sem mudar o status. Mande só os campos alterados: equipamento_id, problema_relatado,
+// retirada_agendada, responsavel_id, diagnostico, servico_executado, pecas_trocadas, forma_devolucao
+// (retirada ou entrega), endereco_entrega e entrega_agendada; `motivo` é opcional.
+// Cada campo só muda nas etapas permitidas pelo backend (422 por campo).
+export function editarOrdem(id, dados) {
+  return api(`/ordens-servico/${id}`, { method: 'PUT', body: dados })
+}
+
 // Cada etapa abaixo avança o status no backend e devolve a OS com o histórico atualizado.
 const etapa = (id, caminho, method, body = {}) => api(`/ordens-servico/${id}/${caminho}`, { method, body })
+
+// Troca o técnico responsável (usuário ativo da mesma assistência).
+export const trocarResponsavel = (id, responsavelId) => etapa(id, 'responsavel', 'PUT', { responsavel_id: responsavelId })
 
 export const registrarRetirada = (id, dados) => etapa(id, 'retirada', 'POST', dados)
 export const registrarDiagnostico = (id, diagnostico) => etapa(id, 'diagnostico', 'POST', { diagnostico })
@@ -36,8 +48,13 @@ export const enviarOrcamento = (id) => etapa(id, 'orcamento/envio', 'POST')
 export const responderOrcamento = (id, dados) => etapa(id, 'orcamento/resposta', 'POST', dados)
 
 export const registrarReparo = (id, dados) => etapa(id, 'reparo', 'PUT', dados)
-export const marcarPronto = (id, observacao) => etapa(id, 'pronto', 'POST', { observacao })
+// `devolucao`: forma_devolucao, endereco_entrega e entrega_agendada escolhidos ao marcar como pronto.
+export const marcarPronto = (id, observacao, devolucao = {}) => etapa(id, 'pronto', 'POST', { observacao, ...devolucao })
 export const registrarEntrega = (id, dados) => etapa(id, 'entrega', 'POST', dados)
+
+// Volta para a etapa anterior, com motivo (vai para o histórico). `statusAtual` é o que a tela mostra:
+// se a OS já mudou (clique duplo, outra pessoa), a API recusa.
+export const voltarEtapa = (id, motivo, statusAtual) => etapa(id, 'voltar-etapa', 'POST', { motivo, status_atual: statusAtual })
 
 // Mensagem pronta para o status atual e o link wa.me para o técnico enviar (RF18).
 export function mensagemWhatsApp(id) {

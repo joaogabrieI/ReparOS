@@ -3,9 +3,12 @@ import { AcessoCentral, CartaoAcesso } from '../components/AcessoLayout'
 import ErroCampo from '../components/ErroCampo'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
-import { data, diaMesHora, moeda, nomeEquipamento } from '../data/formato'
-import { corStatus, iconeEquipamento } from '../data/status'
+import { data, dataHora, diaMesHora, moeda, nomeEquipamento } from '../data/formato'
+import { corStatus, iconeEquipamento, infoDevolucao } from '../data/status'
 import { acompanharOrdem, responderOrcamentoCliente } from '../services/ordens'
+
+// Etapas em que o cliente já precisa saber se retira o equipamento ou se recebe em casa.
+const MOSTRA_DEVOLUCAO = ['em_reparo', 'pronto_para_retirada', 'orcamento_recusado']
 
 const SITUACAO = { pendente: 'aguardando sua resposta', aprovado: 'aprovado', recusado: 'recusado' }
 
@@ -80,6 +83,9 @@ export default function Acompanhar({ numeroInicial = '', codigo = '' }) {
         <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', textAlign: 'center' }}>
           É técnico? <a href="#/entrar">Entrar na sua conta</a>
         </div>
+        <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', textAlign: 'center' }}>
+          Seus dados são usados só para o atendimento. <a href="#/privacidade">Política de privacidade</a>
+        </div>
       </CartaoAcesso>
     </AcessoCentral>
   )
@@ -101,17 +107,28 @@ function Andamento({ os, codigo, onResposta }) {
             {os.assistencia} · <span className="mono">{os.numero}</span> · aberta em {data(os.data_abertura)}
           </div>
         </div>
-        <Pill status={os.status} />
+        <Pill status={os.status} rotulo={os.status_rotulo} />
       </div>
 
       <div className="nota" style={{ alignItems: 'center' }}>
         <i className="ph ph-info" style={{ color: 'var(--color-accent-300)' }} />
         <span>
           {os.status === 'entregue'
-            ? `Equipamento entregue em ${data(os.data_entrega)}.`
+            ? `Equipamento entregue${os.forma_devolucao === 'entrega' ? ' no seu endereço' : ''} em ${data(os.data_entrega)}.`
             : `Status atual desde ${diaMesHora(os.data_status).replace(' ', ' às ')}.${os.proximos.length ? ` Próxima etapa: ${os.proximos.join(' ou ')}.` : ''}`}
         </span>
       </div>
+
+      {MOSTRA_DEVOLUCAO.includes(os.status) && (
+        <div className="nota" style={{ alignItems: 'center' }}>
+          <i className={`ph ${infoDevolucao(os.forma_devolucao).icone}`} style={{ color: 'var(--color-accent-300)' }} />
+          <span>
+            {os.forma_devolucao === 'entrega'
+              ? `A assistência vai entregar o equipamento no seu endereço${os.entrega_agendada ? `, em ${dataHora(os.entrega_agendada).replace(' ', ' às ')}` : '. O horário será combinado pelo WhatsApp'}.`
+              : 'Você retira o equipamento na assistência.'}
+          </span>
+        </div>
+      )}
 
       {orcamento && (
         <div className="painel painel-pad" style={{ gap: 6 }}>

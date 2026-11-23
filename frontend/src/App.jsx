@@ -1,23 +1,30 @@
 import { useRota } from './components/roteador'
+import { useDados } from './data/contexto'
 import { DadosProvider } from './data/store'
+import AceitarTermos from './pages/AceitarTermos'
 import AbrirOs from './pages/AbrirOs'
 import Acompanhar from './pages/Acompanhar'
+import Atividades from './pages/Atividades'
 import BuscarOs from './pages/BuscarOs'
 import Cadastro from './pages/Cadastro'
 import Clientes from './pages/Clientes'
 import DetalheOs from './pages/DetalheOs'
+import Documento from './pages/Documento'
 import Entrar from './pages/Entrar'
+import Equipe from './pages/Equipe'
 import Inicio from './pages/Inicio'
 import NovaSenha from './pages/NovaSenha'
 import OsPendentes from './pages/OsPendentes'
 import RecuperarSenha from './pages/RecuperarSenha'
 
-// Telas do técnico: todas usam os dados compartilhados da API (DadosProvider).
+// Telas da assistência: todas usam os dados compartilhados da API (DadosProvider).
 function TelaTecnico({ caminho, params }) {
   const partes = caminho.split('/').filter(Boolean)
 
   if (caminho === '/pendentes') return <OsPendentes key={params.toString()} buscaInicial={params.get('busca') ?? ''} />
-  if (caminho === '/os') return <BuscarOs />
+  if (caminho === '/os') return <BuscarOs minhas={params.has('minhas')} />
+  if (caminho === '/equipe') return <Equipe />
+  if (caminho === '/atividades') return <Atividades key={params.toString()} entidade={params.get('entidade') ?? ''} entidadeId={params.get('entidade_id') ?? ''} />
   if (caminho === '/os/nova') {
     const cliente = Number(params.get('cliente')) || undefined
     return <AbrirOs key={cliente} clienteInicial={cliente} />
@@ -30,6 +37,13 @@ function TelaTecnico({ caminho, params }) {
   return <Inicio />
 }
 
+// Sem o aceite das versões atuais dos Termos de uso e da Política de privacidade, o sistema não abre.
+function PortaoTermos({ children }) {
+  const { usuario, recarregarUsuario } = useDados()
+  if (usuario?.termos_pendentes) return <AceitarTermos usuario={usuario} onAceito={recarregarUsuario} />
+  return children
+}
+
 function App() {
   const { caminho, params } = useRota()
   const partes = caminho.split('/').filter(Boolean)
@@ -38,6 +52,9 @@ function App() {
   if (caminho === '/entrar') return <Entrar expirou={params.has('expirou')} />
   if (caminho === '/cadastro') return <Cadastro />
   if (caminho === '/esqueci-senha') return <RecuperarSenha />
+  // Termos de uso e Política de privacidade: páginas públicas, abertas a partir do cadastro e da tela do cliente.
+  if (caminho === '/termos') return <Documento tipo="termos" />
+  if (caminho === '/privacidade') return <Documento tipo="privacidade" />
   if (caminho === '/nova-senha') return <NovaSenha token={params.get('token') ?? ''} email={params.get('email') ?? ''} />
 
   // Área do cliente, sem login: andamento da OS pelo número. O código do link do WhatsApp permite responder ao orçamento.
@@ -52,7 +69,9 @@ function App() {
 
   return (
     <DadosProvider caminho={caminho}>
-      <TelaTecnico caminho={caminho} params={params} />
+      <PortaoTermos>
+        <TelaTecnico caminho={caminho} params={params} />
+      </PortaoTermos>
     </DadosProvider>
   )
 }

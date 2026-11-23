@@ -4,6 +4,7 @@ import CampoSenha from '../components/CampoSenha'
 import ErroCampo from '../components/ErroCampo'
 import { navegar } from '../components/roteador'
 import { senhaValida } from '../data/regras'
+import { VERSAO_PRIVACIDADE, VERSAO_TERMOS } from '../data/termos'
 import { guardarToken } from '../services/api'
 import { cadastrar } from '../services/auth'
 
@@ -28,7 +29,8 @@ export default function Cadastro() {
     setErros({})
     setErroGeral('')
     try {
-      const { token } = await cadastrar(form)
+      // Vai junto o aceite com as versões que a pessoa leu; o backend grava data, hora e IP.
+      const { token } = await cadastrar({ ...form, aceite_termos: aceite, versao_termos: VERSAO_TERMOS, versao_privacidade: VERSAO_PRIVACIDADE })
       guardarToken(token, true)
       navegar('/')
     } catch (falha) {
@@ -102,8 +104,19 @@ export default function Cadastro() {
           <span className="caixa">
             <i className="ph ph-check" />
           </span>
-          <span>Li e aceito os Termos de uso e a Política de privacidade</span>
+          <span>
+            Li e aceito os{' '}
+            <a href="#/termos" target="_blank" rel="noreferrer">
+              Termos de uso
+            </a>{' '}
+            e a{' '}
+            <a href="#/privacidade" target="_blank" rel="noreferrer">
+              Política de privacidade
+            </a>{' '}
+            *
+          </span>
         </label>
+        <ErroCampo erros={erros.aceite_termos ?? erros.versao_termos ?? erros.versao_privacidade} />
 
         {erroGeral && <ErroCampo erros={[erroGeral]} />}
 
