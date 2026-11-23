@@ -57,13 +57,12 @@ function App() {
   if (caminho === '/privacidade') return <Documento tipo="privacidade" />
   if (caminho === '/nova-senha') return <NovaSenha token={params.get('token') ?? ''} email={params.get('email') ?? ''} />
 
-  // Área do cliente, sem login: andamento da OS pelo número. O código do link do WhatsApp permite responder ao orçamento.
+  // Área do cliente, sem login: só consulta o andamento da OS pelo número.
   if (partes[0] === 'acompanhar')
     return (
       <Acompanhar
         key={partes[1] ?? ''}
         numeroInicial={partes[1] ? decodeURIComponent(partes[1]) : ''}
-        codigo={params.get('codigo') ?? ''}
       />
     )
 

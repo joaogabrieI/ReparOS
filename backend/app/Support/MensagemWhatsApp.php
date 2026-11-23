@@ -48,23 +48,19 @@ class MensagemWhatsApp
                 : "{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!"],
         };
 
-        $acompanhar = $this->codigoResposta()
-            ? "Para aprovar ou recusar pelo celular, abra: {$this->linkAcompanhamento()}"
-            : "Acompanhe o reparo pelo link: {$this->linkAcompanhamento()}";
+        $acompanhar = "Acompanhe o reparo pelo link: {$this->linkAcompanhamento()}";
         $assinatura = $os->equipamento->cliente->assistencia->nome;
 
         return implode("\n", [...$linhas, '', $acompanhar, '', $assinatura]);
     }
 
     /**
-     * Tela pública de acompanhamento da OS. Com o orçamento aguardando resposta, o link leva também o código
-     * que permite ao cliente aprová-lo ou recusá-lo ali mesmo.
+     * Tela pública de acompanhamento da OS, só para consulta. O cliente responde ao orçamento pelo WhatsApp
+     * e a assistência registra a resposta.
      */
     public function linkAcompanhamento(): string
     {
-        $codigo = $this->codigoResposta();
-
-        return LinkFrontend::para('acompanhar/'.rawurlencode($this->os->numero), $codigo ? ['codigo' => $codigo] : []);
+        return LinkFrontend::para('acompanhar/'.rawurlencode($this->os->numero));
     }
 
     /**
@@ -124,11 +120,6 @@ class MensagemWhatsApp
         return $data
             ? "A entrega está combinada para {$data->format('d/m \\à\\s H:i')}. Se precisar mudar, é só responder esta mensagem."
             : 'Qual o melhor dia e horário para a entrega?';
-    }
-
-    private function codigoResposta(): ?string
-    {
-        return $this->os->status === StatusOrdemServico::AguardandoAprovacao ? $this->os->orcamento?->codigo_resposta : null;
     }
 
     private function primeiroNome(): string

@@ -9,11 +9,11 @@ use Illuminate\Support\Facades\Auth;
 
 /**
  * Grava o registro de atividade: quem fez, o quê, em qual registro, com o antes e o depois.
- * Senhas, tokens e o código do link do orçamento nunca entram nos dados gravados.
+ * Senhas e tokens nunca entram nos dados gravados.
  */
 class Auditoria
 {
-    public const CAMPOS_SENSIVEIS = ['password', 'remember_token', 'codigo_resposta'];
+    public const CAMPOS_SENSIVEIS = ['password', 'remember_token'];
 
     private static bool $peloCliente = false;
 

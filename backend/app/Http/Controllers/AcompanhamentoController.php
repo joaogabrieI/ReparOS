@@ -3,60 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Enums\StatusOrdemServico;
-use App\Http\Requests\RespostaClienteRequest;
 use App\Models\HistoricoStatus;
 use App\Models\ItemOrcamento;
-use App\Models\Orcamento;
 use App\Models\OrdemServico;
-use App\Support\Auditoria;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Área do cliente, sem login: andamento da OS pelo número que ele recebeu e a resposta ao orçamento.
+ * Área do cliente, sem login: só consulta o andamento da OS pelo número que ele recebeu. O cliente não
+ * aprova nem recusa o orçamento por aqui: responde à assistência, que registra a resposta no sistema.
  * Mostra só o necessário para acompanhar o reparo; nada de telefone, endereço ou anotações internas do técnico.
  */
 class AcompanhamentoController extends Controller
 {
     public function show(string $numero): JsonResponse
     {
-        return response()->json($this->andamento($this->buscar($numero)));
-    }
-
-    /**
-     * O cliente aprova ou recusa o orçamento pela tela, com o código do link do WhatsApp. Segue as mesmas regras
-     * da resposta registrada pelo técnico (um passo no fluxo, histórico imutável), com o canal "link".
-     * Orçamento vencido não pode ser aprovado por aqui: os valores precisam ser confirmados com a assistência.
-     */
-    public function responder(RespostaClienteRequest $request, string $numero): JsonResponse
-    {
-        $os = $this->buscar($numero);
-        $orcamento = $os->orcamento;
-
-        abort_unless(
-            $os->status === StatusOrdemServico::AguardandoAprovacao && $orcamento,
-            422,
-            'Esta OS não está aguardando a resposta do orçamento.',
-        );
-        abort_unless(
-            $orcamento->codigoConfere($request->validated('codigo')),
-            403,
-            'Este link não permite responder ao orçamento. Use o último link enviado pela assistência.',
-        );
-
-        $aprovado = (bool) $request->validated('aprovado');
-        abort_if(
-            $aprovado && $orcamento->vencido,
-            422,
-            'Este orçamento venceu em '.$orcamento->validade_ate->format('d/m/Y').'. Fale com a assistência para confirmar os valores.',
-        );
-
-        // Quem responde é o cliente: nada fica no nome de um usuário da assistência.
-        Auditoria::peloCliente(fn () => $orcamento->registrarResposta(
-            $aprovado,
-            Orcamento::CANAL_LINK,
-            ($aprovado ? 'Orçamento aprovado' : 'Orçamento recusado').' pelo próprio cliente na tela de acompanhamento (link enviado pelo WhatsApp).',
-        ));
-
         return response()->json($this->andamento($this->buscar($numero)));
     }
 
@@ -90,7 +50,7 @@ class AcompanhamentoController extends Controller
             'data_abertura' => $os->data_abertura,
             'data_status' => $os->data_status,
             'data_entrega' => $os->data_entrega,
-            // O orçamento só aparece depois de enviado ao cliente, com os itens para ele saber o que está aprovando.
+            // O orçamento só aparece depois de enviado ao cliente, com os itens, apenas para consulta.
             'orcamento' => $orcamento ? [
                 'valor_total' => $orcamento->valor_total,
                 'situacao' => $orcamento->situacao,

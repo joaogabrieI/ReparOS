@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AcessoCentral, CartaoAcesso } from '../components/AcessoLayout'
 import ErroCampo from '../components/ErroCampo'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { data, dataHora, diaMesHora, moeda, nomeEquipamento } from '../data/formato'
 import { corStatus, iconeEquipamento, infoDevolucao } from '../data/status'
-import { acompanharOrdem, responderOrcamentoCliente } from '../services/ordens'
+import { acompanharOrdem } from '../services/ordens'
 
 // Etapas em que o cliente já precisa saber se retira o equipamento ou se recebe em casa.
 const MOSTRA_DEVOLUCAO = ['em_reparo', 'pronto_para_retirada', 'orcamento_recusado']
 
-const SITUACAO = { pendente: 'aguardando sua resposta', aprovado: 'aprovado', recusado: 'recusado' }
+const SITUACAO = { pendente: 'aguardando sua resposta à assistência', aprovado: 'aprovado', recusado: 'recusado' }
 
 // Área do cliente, sem login: andamento da OS pelo número recebido no WhatsApp (perfil Cliente).
 // A API não devolve telefone, endereço nem anotações internas do técnico.
-// Com o `codigo` do link do WhatsApp, o cliente também aprova ou recusa o orçamento por aqui.
-export default function Acompanhar({ numeroInicial = '', codigo = '' }) {
+// A tela é só para consulta: o cliente responde ao orçamento direto com a assistência.
+export default function Acompanhar({ numeroInicial = '' }) {
   const [numero, setNumero] = useState(numeroInicial)
   const [os, setOs] = useState(null)
   const [erro, setErro] = useState('')
@@ -78,7 +78,7 @@ export default function Acompanhar({ numeroInicial = '', codigo = '' }) {
           </div>
         </form>
 
-        {os && <Andamento os={os} codigo={codigo} onResposta={setOs} />}
+        {os && <Andamento os={os} />}
 
         <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', textAlign: 'center' }}>
           É técnico? <a href="#/entrar">Entrar na sua conta</a>
@@ -91,9 +91,8 @@ export default function Acompanhar({ numeroInicial = '', codigo = '' }) {
   )
 }
 
-function Andamento({ os, codigo, onResposta }) {
+function Andamento({ os }) {
   const { orcamento } = os
-  const [respondido, setRespondido] = useState('')
   const aguardando = os.status === 'aguardando_aprovacao' && orcamento?.situacao === 'pendente'
   return (
     <section aria-label={`Andamento da OS ${os.numero}`} style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--color-neutral-800)', paddingTop: 14 }}>
@@ -159,18 +158,14 @@ function Andamento({ os, codigo, onResposta }) {
               Prazo do reparo: {orcamento.prazo_dias} {orcamento.prazo_dias === 1 ? 'dia útil' : 'dias úteis'} após a aprovação.
             </div>
           )}
-          {aguardando && <RespostaOrcamento os={os} codigo={codigo} onResposta={(nova, texto) => (setRespondido(texto), onResposta(nova))} />}
+          {aguardando && (
+            <div className="nota" style={{ alignItems: 'center' }}>
+              <i className="ph ph-chat-circle-text" style={{ color: 'var(--color-accent-300)' }} aria-hidden="true" />
+              <span>Para aprovar ou recusar o orçamento, responda à assistência pelo WhatsApp ou telefone.</span>
+            </div>
+          )}
         </div>
       )}
-
-      <div role="status">
-        {respondido && (
-          <div className="nota" style={{ alignItems: 'center' }}>
-            <i className="ph ph-check-circle" style={{ color: 'var(--color-accent-300)' }} aria-hidden="true" />
-            <span>{respondido}</span>
-          </div>
-        )}
-      </div>
 
       <div>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>Histórico</div>
@@ -185,121 +180,5 @@ function Andamento({ os, codigo, onResposta }) {
         </ol>
       </div>
     </section>
-  )
-}
-
-// Botões de aprovar e recusar, cada um com confirmação. Sem o código do link, só explica como responder.
-function RespostaOrcamento({ os, codigo, onResposta }) {
-  const { orcamento } = os
-  const [confirmando, setConfirmando] = useState(null)
-  const [enviando, setEnviando] = useState(false)
-  const [erro, setErro] = useState('')
-  const refBotoes = useRef(null)
-
-  const fechar = useCallback(() => {
-    setConfirmando(null)
-    // Devolve o foco para os botões ao fechar a confirmação.
-    requestAnimationFrame(() => refBotoes.current?.querySelector('button')?.focus())
-  }, [])
-
-  if (!codigo)
-    return (
-      <div className="nota" style={{ alignItems: 'center', marginTop: 4 }}>
-        <i className="ph ph-whatsapp-logo" style={{ color: 'var(--color-accent-300)' }} aria-hidden="true" />
-        <span>Para aprovar ou recusar o orçamento por aqui, abra o link que a assistência enviou pelo WhatsApp.</span>
-      </div>
-    )
-
-  async function confirmar() {
-    const aprovado = confirmando === 'aprovar'
-    setEnviando(true)
-    setErro('')
-    try {
-      const nova = await responderOrcamentoCliente(os.numero, codigo, aprovado)
-      setConfirmando(null)
-      onResposta(
-        nova,
-        aprovado
-          ? 'Orçamento aprovado. A resposta já aparece para a assistência, que vai começar o reparo.'
-          : 'Orçamento recusado. A assistência vai combinar com você a devolução do equipamento, sem reparo.',
-      )
-    } catch (e) {
-      setConfirmando(null)
-      setErro(e.status === 429 ? 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.' : e.message)
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6, paddingTop: 10, borderTop: '1px solid var(--color-neutral-800)' }}>
-      {orcamento.vencido && (
-        <div className="aviso aviso-atencao">
-          <i className="ph ph-warning" style={{ fontSize: 18 }} aria-hidden="true" />
-          <span>
-            Este orçamento venceu em {data(`${orcamento.validade_ate}T12:00`)}. Para aprovar, fale com a assistência e confirme os valores. Você ainda pode
-            recusá-lo por aqui.
-          </span>
-        </div>
-      )}
-      <div ref={refBotoes} style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-secondary btn-perigo" onClick={() => setConfirmando('recusar')}>
-          <i className="ph ph-x" aria-hidden="true" />
-          Recusar
-        </button>
-        <button type="button" className="btn btn-primary" disabled={orcamento.vencido} onClick={() => setConfirmando('aprovar')}>
-          <i className="ph ph-check" aria-hidden="true" />
-          Aprovar orçamento
-        </button>
-      </div>
-      <div role="alert">
-        <ErroCampo erros={erro ? [erro] : null} />
-      </div>
-      {confirmando && <Confirmacao os={os} aprovar={confirmando === 'aprovar'} enviando={enviando} onConfirmar={confirmar} onFechar={fechar} />}
-    </div>
-  )
-}
-
-function Confirmacao({ os, aprovar, enviando, onConfirmar, onFechar }) {
-  const refConfirmar = useRef(null)
-  const { orcamento } = os
-
-  // Foco no botão de confirmar ao abrir; Esc fecha.
-  useEffect(() => {
-    refConfirmar.current?.focus()
-    const tecla = (e) => e.key === 'Escape' && onFechar()
-    window.addEventListener('keydown', tecla)
-    return () => window.removeEventListener('keydown', tecla)
-  }, [onFechar])
-
-  return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 440 }} role="dialog" aria-modal="true" aria-labelledby="rc-titulo" aria-describedby="rc-texto">
-        <span className="dialog-title" id="rc-titulo">
-          {aprovar ? 'Aprovar o orçamento?' : 'Recusar o orçamento?'}
-        </span>
-        <p id="rc-texto" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: 'var(--color-neutral-300)' }}>
-          {aprovar
-            ? `Você autoriza o reparo do ${os.equipamento.modelo} por ${moeda(orcamento.valor_total)}, com prazo de ${orcamento.prazo_dias} ${orcamento.prazo_dias === 1 ? 'dia útil' : 'dias úteis'} a partir de agora.`
-            : `O ${os.equipamento.modelo} não será consertado e ficará disponível para devolução.`}{' '}
-          A resposta fica registrada no histórico da OS e não pode ser desfeita por aqui.
-        </p>
-        <div className="dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={onFechar} disabled={enviando}>
-            Voltar
-          </button>
-          <button
-            type="button"
-            ref={refConfirmar}
-            className={`btn ${aprovar ? 'btn-primary' : 'btn-secondary btn-perigo'}`}
-            disabled={enviando}
-            onClick={onConfirmar}
-          >
-            <i className={`ph ${aprovar ? 'ph-check' : 'ph-x'}`} aria-hidden="true" />
-            {enviando ? 'Enviando…' : aprovar ? 'Sim, aprovar' : 'Sim, recusar'}
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }

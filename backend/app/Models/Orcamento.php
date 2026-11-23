@@ -26,21 +26,13 @@ class Orcamento extends Model
         'data_envio',
         'data_resposta',
         'canal_resposta',
-        'codigo_resposta',
     ];
 
-    // O código só sai no link do WhatsApp; nenhuma resposta da API o devolve.
-    protected $hidden = ['codigo_resposta'];
-
     /**
-     * Canais em que o cliente pode responder ao orçamento.
+     * Canais em que o cliente pode responder ao orçamento; quem registra a resposta é sempre a assistência.
+     * Respostas antigas podem ter o canal "link", de quando o cliente respondia pela tela de acompanhamento.
      */
     public const CANAIS = ['whatsapp', 'telefone', 'presencial'];
-
-    /**
-     * Canal gravado quando o próprio cliente responde pela tela de acompanhamento (link do WhatsApp).
-     */
-    public const CANAL_LINK = 'link';
 
     protected $appends = ['vencido'];
 
@@ -88,7 +80,6 @@ class Orcamento extends Model
     /**
      * Grava a resposta do cliente e avança a OS um passo, com o histórico, na mesma transação (RF12).
      * Aprovado: "Em reparo", e o prazo vira data contando dias úteis. Recusado: "Orçamento recusado".
-     * O código do link deixa de valer: cada orçamento só recebe uma resposta.
      */
     public function registrarResposta(bool $aprovado, string $canal, string $observacao): void
     {
@@ -102,17 +93,8 @@ class Orcamento extends Model
                 'data_resposta' => now(),
                 'canal_resposta' => $canal,
                 'prazo_entrega' => $aprovado ? today()->addWeekdays($this->prazo_dias) : null,
-                'codigo_resposta' => null,
             ]);
         });
-    }
-
-    /**
-     * Confere o código do link em tempo constante, para a comparação não vazar pistas.
-     */
-    public function codigoConfere(?string $codigo): bool
-    {
-        return $this->codigo_resposta !== null && is_string($codigo) && hash_equals($this->codigo_resposta, $codigo);
     }
 
     public function assistenciaId(): int

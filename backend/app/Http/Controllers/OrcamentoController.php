@@ -10,7 +10,6 @@ use App\Models\OrdemServico;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 /**
  * Orçamento da OS: lançamento, envio ao cliente e registro da resposta (RF11, RF12, RF19).
@@ -66,7 +65,6 @@ class OrcamentoController extends Controller
                 'situacao' => SituacaoOrcamento::Pendente,
                 'data_envio' => now(),
                 'validade_ate' => today()->addDays($orcamento->validade_dias),
-                'codigo_resposta' => Str::random(32),
             ]);
             $ordemServico->mudarStatus(StatusOrdemServico::AguardandoAprovacao);
         });

@@ -58,10 +58,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('senha', fn (Request $request) => Limit::perMinute(5)
             ->by($request->ip())
             ->response($muitas('recuperação de senha')));
-
-        RateLimiter::for('resposta-orcamento', fn (Request $request) => Limit::perMinute(10)
-            ->by($request->ip())
-            ->response($muitas('resposta ao orçamento')));
     }
 
     /**

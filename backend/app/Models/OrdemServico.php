@@ -192,7 +192,7 @@ class OrdemServico extends Model
         match (true) {
             $anterior === StatusOrdemServico::Aberta => $this->data_retirada = null,
             $atual === StatusOrdemServico::Entregue => $this->data_entrega = null,
-            // Orçamento enviado → rascunho: itens e valores voltam a ser editáveis e o link do cliente deixa de valer.
+            // Orçamento enviado → rascunho: itens e valores voltam a ser editáveis.
             $anterior === StatusOrdemServico::DiagnosticoRealizado && $orcamento !== null => $orcamento->update([
                 'situacao' => SituacaoOrcamento::Pendente,
                 'data_envio' => null,
@@ -200,15 +200,13 @@ class OrdemServico extends Model
                 'data_resposta' => null,
                 'canal_resposta' => null,
                 'prazo_entrega' => null,
-                'codigo_resposta' => null,
             ]),
-            // Resposta do cliente desfeita: o orçamento volta a aguardar resposta, com um código novo no link.
+            // Resposta do cliente desfeita: o orçamento volta a aguardar resposta.
             $anterior === StatusOrdemServico::AguardandoAprovacao && $orcamento !== null => $orcamento->update([
                 'situacao' => SituacaoOrcamento::Pendente,
                 'data_resposta' => null,
                 'canal_resposta' => null,
                 'prazo_entrega' => null,
-                'codigo_resposta' => Str::random(32),
             ]),
             default => null,
         };

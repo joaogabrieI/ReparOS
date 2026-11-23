@@ -495,7 +495,7 @@ function PainelResposta({ ordem, onResponder, refAcao }) {
   const parada = estaParada(ordem)
   const acao = useAcao()
 
-  // O lembrete leva o link da tela de acompanhamento, onde o cliente aprova ou recusa sozinho.
+  // O lembrete leva o link da tela de acompanhamento, que o cliente usa só para consultar.
   function cobrarResposta() {
     acao.rodar(() =>
       abrirWhatsAppDaApi(ordem.id, null, ({ acompanhamento }) =>
@@ -528,8 +528,8 @@ function PainelResposta({ ordem, onResponder, refAcao }) {
         <span style={{ fontSize: 22, fontWeight: 500 }}>{moeda(totalOrcamento(orcamento))}</span>
       </div>
       <div className="nota" style={{ alignItems: 'center' }}>
-        <i className="ph ph-link" style={{ color: 'var(--color-accent-300)' }} />
-        <span>O cliente também pode aprovar ou recusar pelo link de acompanhamento enviado no WhatsApp; a resposta aparece aqui sozinha.</span>
+        <i className="ph ph-info" style={{ color: 'var(--color-accent-300)' }} />
+        <span>O cliente responde pelo WhatsApp, telefone ou na loja. Registre aqui a aprovação ou a recusa; a tela de acompanhamento dele é só para consulta.</span>
       </div>
       <ErroAcao acao={acao} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -1114,10 +1114,10 @@ function etapaAnterior(ordem) {
 const DESFAZ = {
   aguardando_diagnostico: 'A data da retirada é apagada.',
   diagnostico_realizado: 'O diagnóstico continua gravado e pode ser corrigido antes de salvar de novo.',
-  orcamento_enviado: 'O orçamento volta a ser rascunho: itens e valores podem ser corrigidos e o link enviado ao cliente deixa de valer.',
-  aguardando_aprovacao: 'O orçamento volta a ser rascunho: itens e valores podem ser corrigidos e o link enviado ao cliente deixa de valer.',
-  em_reparo: 'A aprovação é desfeita e o orçamento volta a aguardar a resposta do cliente, com um link novo.',
-  orcamento_recusado: 'A recusa é desfeita e o orçamento volta a aguardar a resposta do cliente, com um link novo.',
+  orcamento_enviado: 'O orçamento volta a ser rascunho: itens e valores podem ser corrigidos.',
+  aguardando_aprovacao: 'O orçamento volta a ser rascunho: itens e valores podem ser corrigidos.',
+  em_reparo: 'A aprovação é desfeita e o orçamento volta a aguardar a resposta do cliente.',
+  orcamento_recusado: 'A recusa é desfeita e o orçamento volta a aguardar a resposta do cliente.',
   pronto_para_retirada: 'As anotações do reparo continuam gravadas.',
   entregue: 'A data da entrega é apagada e a OS volta a ficar pendente.',
 }

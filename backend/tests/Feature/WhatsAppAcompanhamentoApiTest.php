@@ -140,23 +140,31 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         $this->assertStringContainsString("Acompanhe o reparo pelo link: {$link}\n\nAssistência Teste", $resposta['mensagem']);
     }
 
-    public function test_link_do_orcamento_leva_o_codigo_para_responder_e_some_depois_da_resposta(): void
+    public function test_link_do_orcamento_so_leva_para_a_consulta(): void
     {
         $os = $this->criarOs();
         $this->enviarOrcamento($os);
-        $codigo = $os->orcamento()->first()->codigo_resposta;
-        $this->assertSame(32, strlen($codigo));
 
         $resposta = $this->whatsapp($os);
-        $this->assertStringEndsWith("/#/acompanhar/{$os->numero}?codigo={$codigo}", $resposta['acompanhamento']);
-        $this->assertStringContainsString("Para aprovar ou recusar pelo celular, abra: {$resposta['acompanhamento']}", $resposta['mensagem']);
+        $this->assertStringEndsWith("/#/acompanhar/{$os->numero}", $resposta['acompanhamento']);
+        $this->assertStringContainsString("Acompanhe o reparo pelo link: {$resposta['acompanhamento']}", $resposta['mensagem']);
+        $this->assertStringNotContainsString('codigo=', $resposta['mensagem']);
+        $this->assertStringNotContainsString('aprovar ou recusar pelo celular', $resposta['mensagem']);
+    }
 
-        // O código não sai em nenhuma outra resposta da API.
-        $this->assertStringNotContainsString($codigo, $this->getJson("/api/ordens-servico/{$os->id}")->getContent());
+    /**
+     * A tela do cliente é só para consulta: não há rota para ele aprovar ou recusar o orçamento.
+     */
+    public function test_cliente_nao_responde_ao_orcamento_pela_tela_de_acompanhamento(): void
+    {
+        $os = $this->criarOs();
+        $this->enviarOrcamento($os);
 
-        $this->postJson("/api/ordens-servico/{$os->id}/orcamento/resposta", ['aprovado' => true, 'canal' => 'whatsapp'])->assertOk();
-        $this->assertStringNotContainsString('codigo=', $this->whatsapp($os)['mensagem']);
-        $this->assertNull($os->orcamento()->first()->codigo_resposta);
+        $this->app['auth']->forgetGuards();
+
+        $this->postJson("/api/acompanhar/{$os->numero}/orcamento/resposta", ['aprovado' => true])
+            ->assertNotFound();
+        $this->assertSame('aguardando_aprovacao', $os->refresh()->status->value);
     }
 
     public function test_whatsapp_de_os_de_outro_tecnico_responde_404(): void

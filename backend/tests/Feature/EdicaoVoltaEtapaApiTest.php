@@ -192,11 +192,9 @@ class EdicaoVoltaEtapaApiTest extends TestCase
         $this->postJson($this->url($os, 'retirada'))->assertOk()->assertJsonPath('status', 'aguardando_diagnostico');
     }
 
-    public function test_volta_orcamento_enviado_para_rascunho_e_invalida_o_link(): void
+    public function test_volta_orcamento_enviado_para_rascunho_e_pode_ser_reenviado(): void
     {
         $os = $this->osEm(StatusOrdemServico::AguardandoAprovacao);
-        $codigo = $os->orcamento->codigo_resposta;
-        $this->assertNotNull($codigo);
 
         $this->postJson($this->url($os, 'voltar-etapa'), ['motivo' => 'Valor da peça errado'])
             ->assertOk()
@@ -205,11 +203,8 @@ class EdicaoVoltaEtapaApiTest extends TestCase
         $orcamento = $os->refresh()->orcamento;
         $this->assertNull($orcamento->data_envio);
         $this->assertNull($orcamento->validade_ate);
-        $this->assertNull($orcamento->codigo_resposta);
 
-        // O link antigo não responde mais e o orçamento pode ser corrigido e reenviado.
-        $this->postJson("/api/acompanhar/{$os->numero}/orcamento/resposta", ['codigo' => $codigo, 'aprovado' => true])
-            ->assertStatus(422);
+        // O orçamento pode ser corrigido e reenviado.
         $this->putJson($this->url($os, 'orcamento'), [
             'prazo_dias' => 3,
             'itens' => [['tipo' => 'peca', 'descricao' => 'Fonte 65W', 'quantidade' => 1, 'valor_unitario' => 120]],
@@ -228,7 +223,6 @@ class EdicaoVoltaEtapaApiTest extends TestCase
             ->assertJsonPath('orcamento.situacao', 'pendente')
             ->assertJsonPath('orcamento.data_resposta', null)
             ->assertJsonPath('orcamento.prazo_entrega', null);
-        $this->assertNotNull($os->refresh()->orcamento->codigo_resposta);
 
         $this->postJson($this->url($os, 'orcamento/resposta'), ['aprovado' => false, 'canal' => 'telefone'])
             ->assertOk()
