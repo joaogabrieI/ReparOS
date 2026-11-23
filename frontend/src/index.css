@@ -593,3 +593,195 @@ h1.pagina-titulo {
   margin: 0;
   font-family: inherit;
 }
+
+/* — Impressão — */
+
+/* O comprovante de entrada da OS (components/ComprovanteOs.jsx) só existe no papel. */
+.so-impressao {
+  display: none;
+}
+
+.comprovante {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.4;
+  color: #000;
+}
+
+.comprovante h2,
+.comprovante h3 {
+  font-family: inherit;
+  color: #000;
+}
+
+.comprovante-topo {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #000;
+}
+
+.comprovante-assistencia {
+  font-size: 16pt;
+  font-weight: 700;
+}
+
+.comprovante-numero {
+  text-align: right;
+}
+
+.comprovante-os {
+  font-family: var(--font-mono);
+  font-size: 18pt;
+  font-weight: 700;
+}
+
+.comprovante-titulo {
+  margin: 14px 0 6px;
+  font-size: 13pt;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.comprovante-bloco {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  break-inside: avoid;
+}
+
+.comprovante-bloco h3 {
+  margin: 0 0 6px;
+  font-size: 10.5pt;
+  font-weight: 700;
+}
+
+.comprovante-grade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 14px;
+}
+
+.comprovante-campo {
+  display: flex;
+  flex-direction: column;
+}
+
+.comprovante-campo.largo {
+  grid-column: span 2;
+}
+
+.comprovante-rotulo {
+  font-size: 8.5pt;
+  color: #444;
+}
+
+.comprovante-texto {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.comprovante-linhas {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 8.5pt;
+  color: #444;
+}
+
+.comprovante-linhas span:not(:first-child) {
+  border-bottom: 1px solid #888;
+}
+
+.comprovante-condicoes {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 9.5pt;
+}
+
+.comprovante-link {
+  font-family: var(--font-mono);
+  font-size: 9pt;
+  word-break: break-all;
+}
+
+.comprovante-assinaturas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-top: 46px;
+  text-align: center;
+  font-size: 9.5pt;
+  break-inside: avoid;
+}
+
+.comprovante-traco {
+  display: block;
+  margin-bottom: 4px;
+  border-top: 1px solid #000;
+}
+
+.comprovante-data {
+  margin-top: 18px;
+  font-size: 9.5pt;
+}
+
+.comprovante-rodape {
+  margin-top: 16px;
+  padding-top: 6px;
+  border-top: 1px solid #aaa;
+  font-size: 8pt;
+  color: #444;
+  text-align: center;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Some a moldura do sistema: menu, barra superior, diálogos, botões e o link de pular. */
+  .sidebar,
+  .sidebar-fundo,
+  .topbar,
+  .pular-conteudo,
+  .dialog-backdrop,
+  .btn,
+  .so-tela {
+    display: none !important;
+  }
+
+  .so-impressao {
+    display: block;
+  }
+
+  /* A tela ocupa 100vh com rolagem interna; no papel o conteúdo precisa fluir pelas páginas. */
+  .layout,
+  .layout-conteudo,
+  main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: none !important;
+  }
+
+  a {
+    color: #000;
+  }
+}

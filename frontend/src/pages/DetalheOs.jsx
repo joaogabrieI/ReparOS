@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import ComprovanteOs from '../components/ComprovanteOs'
 import Dialogo from '../components/Dialogo'
 import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
@@ -1711,13 +1712,14 @@ export default function DetalheOs({ id }) {
         </span>
       }
       acoes={
+        // Imprime o comprovante de entrada (ComprovanteOs), não a tela: ver @media print em index.css.
         <button className="btn btn-ghost" onClick={() => window.print()}>
-          <i className="ph ph-printer" />
-          Imprimir
+          <i className="ph ph-printer" aria-hidden="true" />
+          Imprimir comprovante
         </button>
       }
     >
-      <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="so-tela" style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
@@ -1818,6 +1820,8 @@ export default function DetalheOs({ id }) {
           </div>
         </div>
       </div>
+
+      <ComprovanteOs ordem={ordem} assistencia={usuario?.assistencia} endereco={endereco} />
 
       {dialogo?.tipo === 'resposta' && (
         <DialogoResposta ordem={ordem} situacaoInicial={dialogo.situacao} onFechar={() => setDialogo(null)} atualizar={atualizar} />
