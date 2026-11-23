@@ -365,3 +365,189 @@ a.tabela-linha:hover {
   color: var(--color-accent-300);
   font-size: 22px;
 }
+
+/* Moldura das telas de acesso (entrar, cadastro, acompanhar) */
+.acesso {
+  min-height: 100vh;
+  display: flex;
+}
+
+.acesso-marca {
+  width: 620px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 56px;
+  background: radial-gradient(ellipse 700px 520px at 0% 100%, var(--color-accent-900), transparent 70%),
+    linear-gradient(180deg, var(--color-surface), var(--color-bg));
+  border-right: 1px solid var(--color-neutral-900);
+}
+
+.acesso-form {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 48px 120px;
+}
+
+.acesso-central {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 48px;
+  position: relative;
+  background: radial-gradient(ellipse 900px 600px at 50% 0%, var(--color-surface), var(--color-bg));
+}
+
+.acesso-central-marca {
+  position: absolute;
+  top: 40px;
+  left: 48px;
+}
+
+.cartao-acesso {
+  max-width: 100%;
+  box-shadow: var(--shadow-md);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Linha que quebra quando falta espaço (ex.: cabeçalho da OS na tela do cliente) */
+.linha-flex {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Moldura das telas do técnico: barra lateral + conteúdo */
+.layout {
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.layout-conteudo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar {
+  width: 232px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 18px 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-neutral-900);
+  background: linear-gradient(180deg, var(--color-surface), var(--color-bg));
+}
+
+.topbar {
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--color-neutral-900);
+}
+
+.so-celular,
+.sidebar-fundo {
+  display: none !important;
+}
+
+/* Celular e tablet em pé */
+@media (max-width: 900px) {
+  .acesso-marca {
+    display: none;
+  }
+
+  .acesso-form {
+    justify-content: center;
+    padding: 32px 16px;
+  }
+
+  .acesso-form > div {
+    max-width: 100%;
+  }
+
+  /* Menu lateral vira gaveta aberta pelo botão da barra superior */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: min(280px, 85vw);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-md);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s;
+  }
+
+  .sidebar.aberta {
+    transform: none;
+    visibility: visible;
+  }
+
+  .sidebar-fundo.aberta {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .so-celular {
+    display: inline-flex !important;
+  }
+
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .topbar-trilha {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .acesso-central {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .acesso-central-marca {
+    position: static;
+    align-self: flex-start;
+  }
+
+  .cartao-acesso {
+    padding: 20px 16px;
+  }
+
+  /* 16 px evita o zoom automático do iPhone ao tocar no campo */
+  .input {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}

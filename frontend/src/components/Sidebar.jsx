@@ -33,23 +33,13 @@ function iniciais(nome = '') {
 }
 
 // Navegação principal da área da assistência (ReparOSSidebar, nav v2).
-export default function Sidebar({ ativo }) {
+// Estilo em .sidebar (index.css): fixa no desktop, gaveta no celular quando `aberta`.
+export default function Sidebar({ ativo, aberta = false }) {
   const { ordens, usuario, admin } = useDados()
   const pendentes = ordens.filter(estaPendente).length
 
   return (
-    <aside
-      style={{
-        width: 232,
-        flex: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        padding: '18px 12px',
-        borderRight: '1px solid var(--color-neutral-900)',
-        background: 'linear-gradient(180deg, var(--color-surface), var(--color-bg))',
-      }}
-    >
+    <aside id="menu-principal" className={`sidebar${aberta ? ' aberta' : ''}`} aria-label="Menu principal">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px 18px' }}>
         <span className="marca">
           <i className="ph ph-wrench" />

@@ -61,6 +61,10 @@ export default function Acompanhar({ numeroInicial = '' }) {
               <input
                 id="a-numero"
                 className={`input mono${erro ? ' input-erro' : ''}`}
+                style={{ flex: 1, minWidth: 0 }}
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete="off"
                 placeholder="OS-20261108-ABCDE"
                 autoFocus={!numeroInicial}
                 value={numero}
@@ -96,14 +100,15 @@ function Andamento({ os }) {
   const aguardando = os.status === 'aguardando_aprovacao' && orcamento?.situacao === 'pendente'
   return (
     <section aria-label={`Andamento da OS ${os.numero}`} style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--color-neutral-800)', paddingTop: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Em telas estreitas o status desce para a linha de baixo em vez de espremer o nome. */}
+      <div className="linha-flex">
         <span className="icone-quadro" style={{ fontSize: 22 }} aria-hidden="true">
           <i className={`ph ${iconeEquipamento(os.equipamento.tipo)}`} />
         </span>
-        <div style={{ flex: 1, lineHeight: 1.35 }}>
+        <div style={{ flex: '1 1 180px', minWidth: 0, lineHeight: 1.35, overflowWrap: 'break-word' }}>
           <div style={{ fontWeight: 500 }}>{nomeEquipamento(os.equipamento)}</div>
           <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>
-            {os.assistencia} · <span className="mono">{os.numero}</span> · aberta em {data(os.data_abertura)}
+            {os.assistencia} · <span className="mono" style={{ whiteSpace: 'nowrap' }}>{os.numero}</span> · aberta em {data(os.data_abertura)}
           </div>
         </div>
         <Pill status={os.status} rotulo={os.status_rotulo} />
@@ -145,9 +150,9 @@ function Andamento({ os }) {
 
       {orcamento && (
         <div className="painel painel-pad" style={{ gap: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
             <span style={{ fontWeight: 500 }}>Orçamento</span>
-            <span style={{ fontSize: 20, fontWeight: 500 }}>{moeda(orcamento.valor_total)}</span>
+            <span style={{ fontSize: 20, fontWeight: 500, whiteSpace: 'nowrap' }}>{moeda(orcamento.valor_total)}</span>
           </div>
           <div style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
             Situação: {os.cancelada && orcamento.situacao !== 'recusado' ? 'sem efeito (OS cancelada)' : (SITUACAO[orcamento.situacao] ?? orcamento.situacao)}
@@ -158,11 +163,11 @@ function Andamento({ os }) {
             <ul aria-label="Itens do orçamento" style={{ listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {orcamento.itens.map((i, k) => (
                 <li key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-                  <span style={{ color: 'var(--color-neutral-400)' }}>
+                  <span style={{ color: 'var(--color-neutral-400)', minWidth: 0, overflowWrap: 'anywhere' }}>
                     {i.tipo === 'peca' ? 'Peça' : 'Serviço'} · {i.descricao}
                     {i.quantidade > 1 && ` ×${i.quantidade}`}
                   </span>
-                  <span>{moeda(i.quantidade * i.valor_unitario)}</span>
+                  <span style={{ flex: 'none', whiteSpace: 'nowrap' }}>{moeda(i.quantidade * i.valor_unitario)}</span>
                 </li>
               ))}
             </ul>
@@ -187,8 +192,8 @@ function Andamento({ os }) {
           {os.historico.map((h, i) => (
             <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', flex: 'none', background: corStatus(h.status) }} />
-              <span style={{ flex: 1 }}>{h.status_rotulo}</span>
-              <span style={{ color: 'var(--color-neutral-500)', fontVariantNumeric: 'tabular-nums' }}>{diaMesHora(h.data_hora)}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>{h.status_rotulo}</span>
+              <span style={{ flex: 'none', color: 'var(--color-neutral-500)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{diaMesHora(h.data_hora)}</span>
             </li>
           ))}
         </ol>

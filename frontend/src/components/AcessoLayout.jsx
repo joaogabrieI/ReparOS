@@ -1,24 +1,14 @@
 // Moldura das telas de login e cadastro: painel da marca à esquerda e formulário à direita.
 export default function AcessoLayout({ titulo, children, largura = 380 }) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
-      <div
-        style={{
-          width: 620,
-          flex: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '48px 56px',
-          background:
-            'radial-gradient(ellipse 700px 520px at 0% 100%, var(--color-accent-900), transparent 70%), linear-gradient(180deg, var(--color-surface), var(--color-bg))',
-          borderRight: '1px solid var(--color-neutral-900)',
-        }}
-      >
+    <div className="acesso">
+      {/* No celular o painel da marca some e o formulário ocupa a tela (index.css). */}
+      <div className="acesso-marca">
         <Marca />
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>{titulo}</div>
         <div style={{ marginTop: 56, fontSize: 12, color: 'var(--color-neutral-600)' }}>© 2026 ReparOS</div>
       </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '48px 120px' }}>
+      <div className="acesso-form">
         <div style={{ width: largura, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
       </div>
     </div>
@@ -40,22 +30,12 @@ export function Destaque({ children }) {
   return <div style={{ fontSize: 40, fontWeight: 500, letterSpacing: '-0.025em', lineHeight: 1.12, maxWidth: 460 }}>{children}</div>
 }
 
-// Fundo das telas de recuperação de senha, com cartões centralizados.
+// Fundo das telas de recuperação de senha e de acompanhamento, com cartões centralizados.
+// No celular a marca sai do canto e fica acima do cartão (index.css).
 export function AcessoCentral({ children }) {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 40,
-        padding: 48,
-        position: 'relative',
-        background: 'radial-gradient(ellipse 900px 600px at 50% 0%, var(--color-surface), var(--color-bg))',
-      }}
-    >
-      <div style={{ position: 'absolute', top: 40, left: 48 }}>
+    <div className="acesso-central">
+      <div className="acesso-central-marca">
         <Marca />
       </div>
       {children}
@@ -63,12 +43,10 @@ export function AcessoCentral({ children }) {
   )
 }
 
+// largura é o máximo: em telas estreitas o cartão ocupa a largura disponível.
 export function CartaoAcesso({ children, largura = 420 }) {
   return (
-    <div
-      className="painel"
-      style={{ width: largura, boxShadow: 'var(--shadow-md)', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}
-    >
+    <div className="painel cartao-acesso" style={{ width: largura }}>
       {children}
     </div>
   )

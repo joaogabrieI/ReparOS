@@ -1,18 +1,23 @@
 // Barra superior de cada tela: trilha à esquerda e ações à direita.
-export default function Topbar({ trilha, children }) {
+// O botão de menu só aparece no celular, onde a barra lateral fica escondida.
+export default function Topbar({ trilha, menuAberto = false, onMenu, children }) {
   return (
-    <div
-      style={{
-        height: 56,
-        flex: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '0 28px',
-        borderBottom: '1px solid var(--color-neutral-900)',
-      }}
-    >
-      <span style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>{trilha}</span>
+    <div className="topbar">
+      {onMenu && (
+        <button
+          type="button"
+          className="btn btn-icon so-celular"
+          onClick={onMenu}
+          aria-label={menuAberto ? 'Fechar menu' : 'Abrir menu'}
+          aria-expanded={menuAberto}
+          aria-controls="menu-principal"
+        >
+          <i className={`ph ${menuAberto ? 'ph-x' : 'ph-list'}`} style={{ fontSize: 20 }} aria-hidden="true" />
+        </button>
+      )}
+      <span className="topbar-trilha" style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>
+        {trilha}
+      </span>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{children}</div>
     </div>
   )
