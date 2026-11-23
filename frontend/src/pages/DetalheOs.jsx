@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
 import { useDados } from '../data/contexto'
-import { agoraLocal, data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, telefone, tempoNaEtapa, totalOrcamento } from '../data/formato'
+import { agoraLocal, data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, telefone, tempoNaEtapa, textoGarantia, totalOrcamento } from '../data/formato'
 import { mensagemLembreteAprovacao, mensagemOrcamento } from '../data/mensagens'
 import { detalhar, estaParada, lerPecas, pecasDoOrcamento, proximoStatus, textoPecas } from '../data/regras'
 import { corStatus, FLUXO, FORMAS_DEVOLUCAO, iconeEquipamento, infoDevolucao, infoStatus, rotuloStatus } from '../data/status'
@@ -718,6 +718,12 @@ function PainelConcluido({ ordem, refAcao, onAlterarDevolucao }) {
         </span>
         {ordem.orcamento && <span style={{ fontSize: 22, fontWeight: 500 }}>{moeda(totalOrcamento(ordem.orcamento))}</span>}
       </div>
+      {entregue && (
+        <div className="nota" style={{ alignItems: 'center' }}>
+          <i className={`ph ${ordem.garantia ? 'ph-shield-check' : 'ph-shield-slash'}`} style={{ color: 'var(--color-accent-300)' }} aria-hidden="true" />
+          <span>{ordem.garantia ? textoGarantia(ordem.garantia) : 'Sem garantia de serviço: o equipamento foi devolvido sem reparo.'}</span>
+        </div>
+      )}
     </div>
   )
 }

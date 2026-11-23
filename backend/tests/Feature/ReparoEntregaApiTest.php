@@ -139,9 +139,47 @@ class ReparoEntregaApiTest extends TestCase
             ->assertJsonPath('status', 'entregue')
             ->assertJsonPath('servico_executado', null)
             ->assertJsonPath('historico.6.status_anterior', 'orcamento_recusado')
-            ->assertJsonPath('historico.6.observacao', 'Equipamento devolvido sem reparo');
+            ->assertJsonPath('historico.6.observacao', 'Equipamento devolvido sem reparo')
+            ->assertJsonPath('garantia', null);
 
         $this->assertNotNull($os->refresh()->data_entrega);
+    }
+
+    public function test_os_reparada_tem_garantia_legal_de_90_dias_a_partir_da_entrega(): void
+    {
+        $os = $this->osRespondida();
+        $this->putJson($this->url($os, 'reparo'), ['servico_executado' => 'Troca da fonte'])->assertOk();
+        $this->postJson($this->url($os, 'pronto'))->assertOk()->assertJsonPath('garantia', null);
+
+        Carbon::setTestNow('2026-11-23 15:00');
+        $this->postJson($this->url($os, 'entrega'))
+            ->assertOk()
+            ->assertJsonPath('garantia.dias', 90)
+            ->assertJsonPath('garantia.inicio', '2026-11-23')
+            ->assertJsonPath('garantia.ate', '2027-02-21')
+            ->assertJsonPath('garantia.ativa', true)
+            ->assertJsonPath('garantia.dias_restantes', 90);
+
+        // No último dia ainda vale; no dia seguinte, venceu.
+        Carbon::setTestNow('2027-02-21 23:00');
+        $this->assertTrue($os->refresh()->garantia['ativa']);
+        $this->assertSame(0, $os->garantia['dias_restantes']);
+
+        Carbon::setTestNow('2027-02-22 08:00');
+        $this->assertFalse($os->refresh()->garantia['ativa']);
+        $this->assertSame(0, $os->garantia['dias_restantes']);
+    }
+
+    public function test_garantia_some_quando_a_entrega_e_desfeita(): void
+    {
+        $os = $this->osRespondida();
+        $this->putJson($this->url($os, 'reparo'), ['servico_executado' => 'Troca da fonte'])->assertOk();
+        $this->postJson($this->url($os, 'pronto'))->assertOk();
+        $this->postJson($this->url($os, 'entrega'))->assertOk()->assertJsonPath('garantia.dias', 90);
+
+        $os->refresh()->voltarEtapa('Entrega registrada por engano');
+
+        $this->assertNull($os->refresh()->garantia);
     }
 
     public function test_nao_marca_pronta_sem_servico_executado(): void

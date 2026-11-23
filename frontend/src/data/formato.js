@@ -41,6 +41,16 @@ export function retirada(iso) {
   return `retirada ${mesmoDia ? 'hoje' : diaMes(iso)} ${hora(iso)}`
 }
 
+// Garantia legal do reparo (90 dias a partir da entrega, CDC art. 26), calculada pela API.
+// A data vem sem horário ("2027-02-21"); o meio-dia evita que o fuso mostre o dia anterior.
+export function textoGarantia(garantia) {
+  if (!garantia) return ''
+  const ate = data(`${garantia.ate}T12:00`)
+  if (!garantia.ativa) return `Garantia legal de ${garantia.dias} dias encerrada em ${ate}.`
+  const restam = garantia.dias_restantes === 0 ? 'último dia' : garantia.dias_restantes === 1 ? 'falta 1 dia' : `faltam ${garantia.dias_restantes} dias`
+  return `Garantia legal de ${garantia.dias} dias até ${ate} (${restam}).`
+}
+
 export function moeda(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }

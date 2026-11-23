@@ -28,7 +28,12 @@ class OrdemServico extends Model
      */
     public const DIAS_PARADA = 3;
 
-    protected $appends = ['dias_na_etapa', 'parada', 'status_rotulo', 'forma_devolucao_rotulo'];
+    /**
+     * Garantia legal do serviço: 90 dias a partir da entrega (CDC art. 26, II, serviço durável).
+     */
+    public const DIAS_GARANTIA = 90;
+
+    protected $appends = ['dias_na_etapa', 'parada', 'status_rotulo', 'forma_devolucao_rotulo', 'garantia'];
 
     /**
      * Status e data_status já vão para o histórico e para o registro de atividade como "mudou_status".
@@ -263,6 +268,42 @@ class OrdemServico extends Model
             $entrega => 'Equipamento entregue no endereço do cliente',
             default => 'Equipamento retirado pelo cliente na assistência',
         };
+    }
+
+    /**
+     * Garantia legal do reparo, calculada a partir da data de entrega (sem coluna própria). O prazo conta
+     * do dia seguinte à entrega: entregue em 23/11, a garantia vale até 21/02. OS devolvida sem reparo
+     * (orçamento recusado) não tem serviço a garantir e devolve null, assim como OS ainda não entregue.
+     *
+     * @return array{dias: int, inicio: string, ate: string, ativa: bool, dias_restantes: int}|null
+     */
+    public function getGarantiaAttribute(): ?array
+    {
+        if (! $this->foiReparada()) {
+            return null;
+        }
+
+        $inicio = $this->data_entrega->copy()->startOfDay();
+        $ate = $inicio->copy()->addDays(self::DIAS_GARANTIA);
+
+        return [
+            'dias' => self::DIAS_GARANTIA,
+            'inicio' => $inicio->toDateString(),
+            'ate' => $ate->toDateString(),
+            'ativa' => today()->lte($ate),
+            'dias_restantes' => max(0, (int) today()->diffInDays($ate, false)),
+        ];
+    }
+
+    /**
+     * Entregue depois do reparo: tem serviço executado e o orçamento não foi recusado.
+     */
+    public function foiReparada(): bool
+    {
+        return $this->status === StatusOrdemServico::Entregue
+            && $this->data_entrega !== null
+            && filled($this->servico_executado)
+            && $this->orcamento?->situacao !== SituacaoOrcamento::Recusado;
     }
 
     public function getParadaAttribute(): bool

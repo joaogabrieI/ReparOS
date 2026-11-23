@@ -50,6 +50,8 @@ class AcompanhamentoController extends Controller
             'data_abertura' => $os->data_abertura,
             'data_status' => $os->data_status,
             'data_entrega' => $os->data_entrega,
+            // Garantia legal de 90 dias do serviço (CDC art. 26); null quando a OS foi devolvida sem reparo.
+            'garantia' => $os->garantia,
             // O orçamento só aparece depois de enviado ao cliente, com os itens, apenas para consulta.
             'orcamento' => $orcamento ? [
                 'valor_total' => $orcamento->valor_total,

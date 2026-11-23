@@ -3,7 +3,7 @@ import { AcessoCentral, CartaoAcesso } from '../components/AcessoLayout'
 import ErroCampo from '../components/ErroCampo'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
-import { data, dataHora, diaMesHora, moeda, nomeEquipamento } from '../data/formato'
+import { data, dataHora, diaMesHora, moeda, nomeEquipamento, textoGarantia } from '../data/formato'
 import { corStatus, iconeEquipamento, infoDevolucao } from '../data/status'
 import { acompanharOrdem } from '../services/ordens'
 
@@ -117,6 +117,16 @@ function Andamento({ os }) {
             : `Status atual desde ${diaMesHora(os.data_status).replace(' ', ' às ')}.${os.proximos.length ? ` Próxima etapa: ${os.proximos.join(' ou ')}.` : ''}`}
         </span>
       </div>
+
+      {os.garantia && (
+        <div className="nota" style={{ alignItems: 'center' }}>
+          <i className="ph ph-shield-check" style={{ color: 'var(--color-accent-300)' }} aria-hidden="true" />
+          <span>
+            {textoGarantia(os.garantia)}
+            {os.garantia.ativa && ' Se o defeito voltar, fale com a assistência informando o número da OS.'}
+          </span>
+        </div>
+      )}
 
       {MOSTRA_DEVOLUCAO.includes(os.status) && (
         <div className="nota" style={{ alignItems: 'center' }}>

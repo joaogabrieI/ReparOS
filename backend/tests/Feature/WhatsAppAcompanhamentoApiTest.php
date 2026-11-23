@@ -116,8 +116,17 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         $this->assertStringContainsString('está pronto para retirada na assistência.', $mensagem);
         $this->assertStringContainsString('Total: R$ 1.350,00', $mensagem);
 
+        Carbon::setTestNow('2026-11-23 15:00');
         $this->postJson("/api/ordens-servico/{$os->id}/entrega")->assertOk();
-        $this->assertStringContainsString('foi entregue. Obrigado pela confiança!', $this->whatsapp($os)['mensagem']);
+        $mensagem = $this->whatsapp($os)['mensagem'];
+        $this->assertStringContainsString('foi entregue. Obrigado pela confiança!', $mensagem);
+        $this->assertStringContainsString('O serviço tem garantia legal de 90 dias, até 21/02/2027.', $mensagem);
+
+        // O cliente também vê a garantia na tela de acompanhamento.
+        $this->getJson('/api/acompanhar/'.$os->numero)
+            ->assertOk()
+            ->assertJsonPath('garantia.ate', '2027-02-21')
+            ->assertJsonPath('garantia.ativa', true);
     }
 
     public function test_mensagem_do_orcamento_recusado_fala_da_devolucao(): void
@@ -127,6 +136,11 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         $this->postJson("/api/ordens-servico/{$os->id}/orcamento/resposta", ['aprovado' => false, 'canal' => 'telefone'])->assertOk();
 
         $this->assertStringContainsString('disponível para retirada na assistência, sem reparo', $this->whatsapp($os)['mensagem']);
+
+        // Devolvido sem reparo: não há serviço a garantir.
+        $this->postJson("/api/ordens-servico/{$os->id}/entrega")->assertOk();
+        $this->assertStringNotContainsString('garantia', $this->whatsapp($os)['mensagem']);
+        $this->getJson('/api/acompanhar/'.$os->numero)->assertOk()->assertJsonPath('garantia', null);
     }
 
     public function test_mensagem_traz_o_link_da_tela_de_acompanhamento(): void

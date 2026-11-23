@@ -7,6 +7,7 @@ use App\Enums\StatusOrdemServico;
 use App\Enums\TipoItemOrcamento;
 use App\Models\ItemOrcamento;
 use App\Models\OrdemServico;
+use Illuminate\Support\Carbon;
 
 /**
  * Mensagem pronta para cada status da OS e o link wa.me que a abre no WhatsApp (RF18).
@@ -43,9 +44,12 @@ class MensagemWhatsApp
                 $os->orcamento ? 'Total: '.$this->moeda($os->orcamento->valor_total) : null,
                 'Quando fica bom pra você?',
             ])),
-            StatusOrdemServico::Entregue => [$this->entrega()
-                ? "{$ola} Seu {$aparelho} foi entregue no seu endereço. Obrigado pela confiança!"
-                : "{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!"],
+            StatusOrdemServico::Entregue => array_values(array_filter([
+                $this->entrega()
+                    ? "{$ola} Seu {$aparelho} foi entregue no seu endereço. Obrigado pela confiança!"
+                    : "{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!",
+                $this->garantia(),
+            ])),
         };
 
         $acompanhar = "Acompanhe o reparo pelo link: {$this->linkAcompanhamento()}";
@@ -103,6 +107,22 @@ class MensagemWhatsApp
             $orcamento->validade_ate ? 'Orçamento válido até '.$orcamento->validade_ate->format('d/m/Y').'.' : null,
             'Podemos seguir?',
         ], fn ($linha) => $linha !== null));
+    }
+
+    /**
+     * Aviso da garantia legal do serviço (CDC art. 26). OS devolvida sem reparo não tem garantia de serviço.
+     */
+    private function garantia(): ?string
+    {
+        $garantia = $this->os->garantia;
+
+        if ($garantia === null) {
+            return null;
+        }
+
+        $ate = Carbon::parse($garantia['ate'])->format('d/m/Y');
+
+        return "O serviço tem garantia legal de {$garantia['dias']} dias, até {$ate}. Se o defeito voltar nesse período, é só falar com a gente informando o número da OS.";
     }
 
     private function entrega(): bool
