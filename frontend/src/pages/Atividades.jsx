@@ -15,6 +15,7 @@ const ACOES = {
   alterou: 'Alterou',
   mudou_status: 'Mudou status',
   voltou_etapa: 'Voltou etapa',
+  cancelou: 'Cancelou OS',
   criou_usuario: 'Criou usuário',
   alterou_usuario: 'Alterou usuário',
   desativou_usuario: 'Desativou usuário',

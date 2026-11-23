@@ -7,9 +7,21 @@ use PHPUnit\Framework\TestCase;
 
 class StatusOrdemServicoTest extends TestCase
 {
-    public function test_existem_nove_status(): void
+    public function test_existem_dez_status(): void
     {
-        $this->assertCount(9, StatusOrdemServico::cases());
+        $this->assertCount(10, StatusOrdemServico::cases());
+    }
+
+    public function test_cancelamento_vale_ate_a_devolucao(): void
+    {
+        $this->assertTrue(StatusOrdemServico::Aberta->podeIrPara(StatusOrdemServico::Cancelada));
+        $this->assertTrue(StatusOrdemServico::ProntoParaRetirada->podeIrPara(StatusOrdemServico::Cancelada));
+        $this->assertFalse(StatusOrdemServico::OrcamentoRecusado->podeIrPara(StatusOrdemServico::Cancelada));
+        $this->assertFalse(StatusOrdemServico::Entregue->podeIrPara(StatusOrdemServico::Cancelada));
+        $this->assertFalse(StatusOrdemServico::Cancelada->podeIrPara(StatusOrdemServico::Cancelada));
+        // Cancelada não aparece como próximo passo do fluxo (a tela do cliente mostra os próximos).
+        $this->assertNotContains(StatusOrdemServico::Cancelada, StatusOrdemServico::EmReparo->proximos());
+        $this->assertSame([StatusOrdemServico::Entregue], StatusOrdemServico::Cancelada->proximos());
     }
 
     public function test_cada_status_tem_um_rotulo(): void

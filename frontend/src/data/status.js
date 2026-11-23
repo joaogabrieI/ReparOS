@@ -9,11 +9,19 @@ export const STATUS = [
   { valor: 'em_reparo', rotulo: 'Em reparo', matiz: 240, proximaAcao: 'Marcar como pronto' },
   { valor: 'pronto_para_retirada', rotulo: 'Pronto para retirada', matiz: 155, proximaAcao: 'Registrar entrega' },
   { valor: 'entregue', rotulo: 'Entregue', matiz: null, proximaAcao: null },
+  // Fora do fluxo: a OS pode ser cancelada em qualquer etapa antes da devolução (desistência do cliente).
+  // Com o equipamento na assistência, ainda falta devolvê-lo sem reparo.
+  { valor: 'cancelada', rotulo: 'Cancelada', matiz: 15, proximaAcao: 'Registrar devolução' },
 ]
 
-// Fluxo principal de 8 etapas (a recusa é um desvio registrado à parte).
-export const FLUXO = STATUS.filter((s) => s.valor !== 'orcamento_recusado').map((s) => s.valor)
+// Fluxo principal de 8 etapas (a recusa e o cancelamento são desvios registrados à parte).
+export const FLUXO = STATUS.filter((s) => !['orcamento_recusado', 'cancelada'].includes(s.valor)).map((s) => s.valor)
 
+// Etapas em que a OS ainda pode ser cancelada (StatusOrdemServico::cancelavel no backend).
+export const CANCELAVEIS = STATUS.filter((s) => !['entregue', 'cancelada', 'orcamento_recusado'].includes(s.valor)).map((s) => s.valor)
+
+// Status que aparecem nas listas de pendentes. A cancelada só entra enquanto o equipamento não foi
+// devolvido (ver estaPendente em regras.js).
 export const PENDENTES = STATUS.filter((s) => s.valor !== 'entregue').map((s) => s.valor)
 
 // OS parada = mais de 3 dias na mesma etapa (RF24).

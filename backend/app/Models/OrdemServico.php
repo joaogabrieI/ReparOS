@@ -33,12 +33,13 @@ class OrdemServico extends Model
      */
     public const DIAS_GARANTIA = 90;
 
-    protected $appends = ['dias_na_etapa', 'parada', 'status_rotulo', 'forma_devolucao_rotulo', 'garantia'];
+    protected $appends = ['dias_na_etapa', 'parada', 'status_rotulo', 'forma_devolucao_rotulo', 'garantia', 'devolucao_pendente'];
 
     /**
-     * Status e data_status já vão para o histórico e para o registro de atividade como "mudou_status".
+     * Status e data_status já vão para o histórico e para o registro de atividade como "mudou_status";
+     * o motivo e a data do cancelamento, como "cancelou".
      */
-    protected array $naoAuditar = ['status', 'data_status'];
+    protected array $naoAuditar = ['status', 'data_status', 'motivo_cancelamento', 'data_cancelamento'];
 
     protected $fillable = [
         'equipamento_id',
@@ -66,6 +67,7 @@ class OrdemServico extends Model
             'forma_devolucao' => FormaDevolucao::class,
             'entrega_agendada' => 'datetime',
             'data_entrega' => 'datetime',
+            'data_cancelamento' => 'datetime',
         ];
     }
 
@@ -144,6 +146,36 @@ class OrdemServico extends Model
     }
 
     /**
+     * Cancela a OS (desistência do cliente), com motivo obrigatório. Vale para qualquer etapa antes da
+     * devolução (ver StatusOrdemServico::cancelavel()). O histórico ganha o registro do cancelamento e o
+     * registro de atividade, a ação "cancelou". Se o equipamento já foi retirado, a OS fica aguardando a
+     * devolução sem reparo, registrada pela entrega; se não, a OS já está encerrada.
+     *
+     * `$statusEsperado` é a etapa que o usuário via na tela: se a OS já mudou, nada acontece.
+     *
+     * @throws TransicaoInvalidaException
+     */
+    public function cancelar(string $motivo, ?StatusOrdemServico $statusEsperado = null): void
+    {
+        DB::transaction(function () use ($motivo, $statusEsperado) {
+            $atual = static::whereKey($this->id)->lockForUpdate()->firstOrFail(['status'])->status;
+
+            if ($statusEsperado && $atual !== $statusEsperado) {
+                throw TransicaoInvalidaException::etapaMudou($atual, 'cancelar');
+            }
+
+            if (! $atual->cancelavel()) {
+                throw TransicaoInvalidaException::naoCancelavel($atual);
+            }
+
+            $this->refresh();
+            $this->motivo_cancelamento = $motivo;
+            $this->data_cancelamento = now();
+            $this->mudarStatus(StatusOrdemServico::Cancelada, $motivo);
+        });
+    }
+
+    /**
      * Volta a OS para a etapa anterior (correção de um passo dado por engano). O histórico ganha um novo
      * registro, marcado como retorno e com o motivo; os registros anteriores ficam como estavam (ISO 27002 5.33).
      * O que a etapa desfeita gravou também é desfeito: a data da retirada ou da entrega, o envio do
@@ -163,8 +195,9 @@ class OrdemServico extends Model
                 throw TransicaoInvalidaException::etapaMudou($atual);
             }
 
-            $anterior = $atual === StatusOrdemServico::Entregue
-                ? $this->historico()->reorder()->where('status_novo', StatusOrdemServico::Entregue)
+            // Entregue e Cancelada voltam para onde a OS estava antes (vem do histórico).
+            $anterior = in_array($atual, [StatusOrdemServico::Entregue, StatusOrdemServico::Cancelada], true)
+                ? $this->historico()->reorder()->where('status_novo', $atual)->where('retorno', false)
                     ->orderByDesc('data_hora')->orderByDesc('id')->value('status_anterior')
                 : $atual->anterior();
             $anterior = is_string($anterior) ? StatusOrdemServico::from($anterior) : $anterior;
@@ -192,6 +225,14 @@ class OrdemServico extends Model
 
     private function desfazerEtapa(StatusOrdemServico $atual, StatusOrdemServico $anterior): void
     {
+        // Cancelamento desfeito: a OS volta para a etapa em que estava, com o orçamento como estava.
+        if ($atual === StatusOrdemServico::Cancelada) {
+            $this->motivo_cancelamento = null;
+            $this->data_cancelamento = null;
+
+            return;
+        }
+
         $orcamento = $this->orcamento;
 
         match (true) {
@@ -226,12 +267,30 @@ class OrdemServico extends Model
     }
 
     /**
-     * OS não entregues que estão há mais de DIAS_PARADA dias na mesma etapa (RF24).
+     * OS que ainda pedem algo da assistência: não entregues e não encerradas pelo cancelamento. A cancelada
+     * com o equipamento na assistência continua pendente até a devolução.
+     */
+    public function scopePendentes(Builder $query): void
+    {
+        $query->where('status', '!=', StatusOrdemServico::Entregue)
+            ->where(fn ($query) => $query->where('status', '!=', StatusOrdemServico::Cancelada)->orWhereNotNull('data_retirada'));
+    }
+
+    /**
+     * OS em andamento que estão há mais de DIAS_PARADA dias na mesma etapa (RF24). Cancelada não conta.
      */
     public function scopeParadas(Builder $query): void
     {
-        $query->where('status', '!=', StatusOrdemServico::Entregue)
+        $query->whereNotIn('status', [StatusOrdemServico::Entregue, StatusOrdemServico::Cancelada])
             ->where('data_status', '<', today()->subDays(self::DIAS_PARADA));
+    }
+
+    /**
+     * OS cancelada com o equipamento na assistência: falta devolvê-lo ao cliente, sem reparo.
+     */
+    public function getDevolucaoPendenteAttribute(): bool
+    {
+        return $this->status === StatusOrdemServico::Cancelada && $this->data_retirada !== null;
     }
 
     /**
@@ -263,6 +322,8 @@ class OrdemServico extends Model
         $entrega = $this->forma_devolucao === FormaDevolucao::Entrega;
 
         return match (true) {
+            $this->status === StatusOrdemServico::Cancelada && $entrega => 'OS cancelada: equipamento devolvido sem reparo, entregue no endereço do cliente',
+            $this->status === StatusOrdemServico::Cancelada => 'OS cancelada: equipamento devolvido sem reparo',
             $semReparo && $entrega => 'Equipamento devolvido sem reparo, entregue no endereço do cliente',
             $semReparo => 'Equipamento devolvido sem reparo',
             $entrega => 'Equipamento entregue no endereço do cliente',
@@ -296,19 +357,21 @@ class OrdemServico extends Model
     }
 
     /**
-     * Entregue depois do reparo: tem serviço executado e o orçamento não foi recusado.
+     * Entregue depois do reparo: tem serviço executado, o orçamento não foi recusado e a OS não foi cancelada.
      */
     public function foiReparada(): bool
     {
         return $this->status === StatusOrdemServico::Entregue
             && $this->data_entrega !== null
+            && $this->data_cancelamento === null
             && filled($this->servico_executado)
             && $this->orcamento?->situacao !== SituacaoOrcamento::Recusado;
     }
 
     public function getParadaAttribute(): bool
     {
-        return $this->status !== StatusOrdemServico::Entregue && $this->dias_na_etapa > self::DIAS_PARADA;
+        return ! in_array($this->status, [StatusOrdemServico::Entregue, StatusOrdemServico::Cancelada], true)
+            && $this->dias_na_etapa > self::DIAS_PARADA;
     }
 
     /**

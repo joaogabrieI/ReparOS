@@ -5,6 +5,13 @@ export function estaParada(ordem) {
   return Boolean(ordem.parada)
 }
 
+// OS que ainda pede algo da assistência: não entregue e não encerrada pelo cancelamento. A cancelada com o
+// equipamento na assistência continua pendente até a devolução (devolucao_pendente vem da API).
+export function estaPendente(ordem) {
+  if (ordem.status === 'cancelada') return Boolean(ordem.devolucao_pendente)
+  return ordem.status !== 'entregue'
+}
+
 // Junta o cliente na OS para as telas não precisarem procurar.
 export function detalhar(ordem) {
   return { ...ordem, cliente: ordem.equipamento?.cliente ?? ordem.cliente, diasNaEtapa: ordem.dias_na_etapa ?? 0 }

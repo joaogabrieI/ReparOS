@@ -112,8 +112,12 @@ function Andamento({ os }) {
       <div className="nota" style={{ alignItems: 'center' }}>
         <i className="ph ph-info" style={{ color: 'var(--color-accent-300)' }} />
         <span>
-          {os.status === 'entregue'
+          {os.status === 'entregue' && os.cancelada
+            ? `OS cancelada em ${data(os.data_cancelamento)}. Equipamento devolvido sem reparo${os.forma_devolucao === 'entrega' ? ' no seu endereço' : ''} em ${data(os.data_entrega)}.`
+            : os.status === 'entregue'
             ? `Equipamento entregue${os.forma_devolucao === 'entrega' ? ' no seu endereço' : ''} em ${data(os.data_entrega)}.`
+            : os.status === 'cancelada'
+            ? `OS cancelada em ${data(os.data_cancelamento)}. ${os.devolucao_pendente ? 'O reparo não será feito e o equipamento será devolvido a você.' : 'O reparo não será feito.'} Em caso de dúvida, fale com a assistência.`
             : `Status atual desde ${diaMesHora(os.data_status).replace(' ', ' às ')}.${os.proximos.length ? ` Próxima etapa: ${os.proximos.join(' ou ')}.` : ''}`}
         </span>
       </div>
@@ -128,7 +132,7 @@ function Andamento({ os }) {
         </div>
       )}
 
-      {MOSTRA_DEVOLUCAO.includes(os.status) && (
+      {(MOSTRA_DEVOLUCAO.includes(os.status) || os.devolucao_pendente) && (
         <div className="nota" style={{ alignItems: 'center' }}>
           <i className={`ph ${infoDevolucao(os.forma_devolucao).icone}`} style={{ color: 'var(--color-accent-300)' }} />
           <span>
@@ -146,9 +150,9 @@ function Andamento({ os }) {
             <span style={{ fontSize: 20, fontWeight: 500 }}>{moeda(orcamento.valor_total)}</span>
           </div>
           <div style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
-            Situação: {SITUACAO[orcamento.situacao] ?? orcamento.situacao}
-            {orcamento.situacao === 'pendente' && orcamento.validade_ate && ` · válido até ${data(`${orcamento.validade_ate}T12:00`)}`}
-            {orcamento.prazo_entrega && os.status !== 'entregue' && ` · previsão de entrega ${data(`${orcamento.prazo_entrega}T12:00`)}`}
+            Situação: {os.cancelada && orcamento.situacao !== 'recusado' ? 'sem efeito (OS cancelada)' : (SITUACAO[orcamento.situacao] ?? orcamento.situacao)}
+            {!os.cancelada && orcamento.situacao === 'pendente' && orcamento.validade_ate && ` · válido até ${data(`${orcamento.validade_ate}T12:00`)}`}
+            {orcamento.prazo_entrega && os.status !== 'entregue' && !os.cancelada && ` · previsão de entrega ${data(`${orcamento.prazo_entrega}T12:00`)}`}
           </div>
           {orcamento.itens?.length > 0 && (
             <ul aria-label="Itens do orçamento" style={{ listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -67,6 +67,8 @@ Route::middleware(['auth:sanctum', 'termos.aceitos'])->group(function () {
             Route::put('/responsavel', [OrdemServicoController::class, 'responsavel']);
             // Desfaz a última etapa, com motivo: novo registro no histórico, sem apagar os anteriores.
             Route::post('/voltar-etapa', [OrdemServicoController::class, 'voltarEtapa']);
+            // Cancela a OS com motivo (desistência do cliente); o equipamento retirado ainda precisa ser devolvido.
+            Route::post('/cancelamento', [OrdemServicoController::class, 'cancelar']);
             Route::post('/retirada', [OrdemServicoController::class, 'retirada']);
             Route::post('/diagnostico', [OrdemServicoController::class, 'diagnostico']);
             Route::put('/orcamento', [OrcamentoController::class, 'salvar']);

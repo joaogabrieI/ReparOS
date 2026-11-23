@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\StatusOrdemServico;
+use App\Http\Requests\CancelamentoRequest;
 use App\Http\Requests\ClienteRequest;
 use App\Http\Requests\DiagnosticoRequest;
 use App\Http\Requests\EdicaoOrdemServicoRequest;
@@ -28,7 +29,7 @@ class OrdemServicoController extends Controller
     /**
      * Busca de OS (RF23, RF24). Filtros opcionais: `busca` (número da OS, nome ou telefone do cliente,
      * marca ou modelo), `status`, `tipo` do equipamento, período de abertura (`de`, `ate`), `pendentes`
-     * (só as não entregues), `paradas` (mais de 3 dias na mesma etapa), `equipamento_id`, `cliente_id`,
+     * (não entregues e não encerradas pelo cancelamento), `paradas` (mais de 3 dias na mesma etapa), `equipamento_id`, `cliente_id`,
      * `responsavel_id` e `minhas` (só as OS em que o usuário logado é o responsável).
      * `ordem`: recentes (padrão), antigas ou mudanca (última mudança de status). A lista não traz o endereço do cliente.
      */
@@ -71,7 +72,7 @@ class OrdemServicoController extends Controller
             ->when($request->filled('tipo'), fn ($query) => $query->whereRelation('equipamento', 'tipo', $request->query('tipo')))
             ->when($request->filled('de'), fn ($query) => $query->where('data_abertura', '>=', Carbon::parse($request->query('de'))->startOfDay()))
             ->when($request->filled('ate'), fn ($query) => $query->where('data_abertura', '<=', Carbon::parse($request->query('ate'))->endOfDay()))
-            ->when($request->boolean('pendentes'), fn ($query) => $query->where('status', '!=', StatusOrdemServico::Entregue))
+            ->when($request->boolean('pendentes'), fn ($query) => $query->pendentes())
             ->when($request->boolean('paradas'), fn ($query) => $query->paradas())
             ->when($busca !== '', function ($query) use ($busca, $digitos) {
                 $query->where(function ($query) use ($busca, $digitos) {
@@ -144,6 +145,22 @@ class OrdemServicoController extends Controller
         $esperado = $request->validated('status_atual');
 
         $ordemServico->voltarEtapa(
+            $request->validated('motivo'),
+            $esperado ? StatusOrdemServico::from($esperado) : null,
+        );
+
+        return response()->json($this->ficha($ordemServico));
+    }
+
+    /**
+     * Cancela a OS, com motivo (desistência do cliente). Com o equipamento na assistência, a OS fica
+     * cancelada até a devolução sem reparo (POST /entrega); antes da retirada, já fica encerrada.
+     */
+    public function cancelar(CancelamentoRequest $request, OrdemServico $ordemServico): JsonResponse
+    {
+        $esperado = $request->validated('status_atual');
+
+        $ordemServico->cancelar(
             $request->validated('motivo'),
             $esperado ? StatusOrdemServico::from($esperado) : null,
         );

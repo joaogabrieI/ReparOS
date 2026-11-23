@@ -56,6 +56,10 @@ export const registrarEntrega = (id, dados) => etapa(id, 'entrega', 'POST', dado
 // se a OS já mudou (clique duplo, outra pessoa), a API recusa.
 export const voltarEtapa = (id, motivo, statusAtual) => etapa(id, 'voltar-etapa', 'POST', { motivo, status_atual: statusAtual })
 
+// Cancela a OS com motivo (desistência do cliente). Com o equipamento na assistência, a OS fica cancelada
+// até a devolução (registrarEntrega). `statusAtual` evita cancelar uma OS que já mudou de etapa.
+export const cancelarOrdem = (id, motivo, statusAtual) => etapa(id, 'cancelamento', 'POST', { motivo, status_atual: statusAtual })
+
 // Mensagem pronta para o status atual e o link wa.me para o técnico enviar (RF18).
 export function mensagemWhatsApp(id) {
   return api(`/ordens-servico/${id}/whatsapp`)

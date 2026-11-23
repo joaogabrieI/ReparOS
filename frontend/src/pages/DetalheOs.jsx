@@ -5,10 +5,11 @@ import { useDados } from '../data/contexto'
 import { agoraLocal, data, dataHora, dataIso, diaMesHora, hora, inicial, linkWhatsApp, moeda, nomeEquipamento, telefone, tempoNaEtapa, textoGarantia, totalOrcamento } from '../data/formato'
 import { mensagemLembreteAprovacao, mensagemOrcamento } from '../data/mensagens'
 import { detalhar, estaParada, lerPecas, pecasDoOrcamento, proximoStatus, textoPecas } from '../data/regras'
-import { corStatus, FLUXO, FORMAS_DEVOLUCAO, iconeEquipamento, infoDevolucao, infoStatus, rotuloStatus } from '../data/status'
+import { CANCELAVEIS, corStatus, FLUXO, FORMAS_DEVOLUCAO, iconeEquipamento, infoDevolucao, infoStatus, rotuloStatus } from '../data/status'
 import { listarEquipamentos } from '../services/equipamentos'
 import {
   buscarOrdem,
+  cancelarOrdem,
   editarOrdem,
   enviarOrcamento,
   marcarPronto,
@@ -35,7 +36,17 @@ const PROXIMO = {
   em_reparo: { rotulo: 'Marcar como pronto', icone: 'ph-check-circle' },
   pronto_para_retirada: { rotulo: 'Registrar entrega', icone: 'ph-handshake' },
   orcamento_recusado: { rotulo: 'Registrar entrega', icone: 'ph-handshake', etapa: 'Entregue (devolução sem reparo)' },
+  // Só enquanto o equipamento cancelado está na assistência (devolucao_pendente).
+  cancelada: { rotulo: 'Registrar devolução', icone: 'ph-handshake', etapa: 'Entregue (devolução sem reparo)' },
 }
+
+// Etapa em que a OS estava quando foi cancelada (último cancelamento que não foi desfeito, pelo histórico).
+function etapaDoCancelamento(ordem) {
+  return [...ordem.historico].reverse().find((h) => h.status_novo === 'cancelada' && !h.retorno)?.status_anterior ?? null
+}
+
+// Cancelada antes da retirada: o equipamento nunca saiu do cliente e a OS já está encerrada.
+const canceladaEncerrada = (ordem) => ordem.status === 'cancelada' && !ordem.devolucao_pendente
 
 function agoraIso() {
   return new Date().toISOString()
@@ -254,17 +265,20 @@ function TagItem({ tipo }) {
 // As 8 etapas do fluxo: concluídas, atual e bloqueadas (RF22).
 function Etapas({ ordem }) {
   const recusada = ordem.status === 'orcamento_recusado'
-  const atual = recusada ? FLUXO.indexOf('aguardando_aprovacao') : FLUXO.indexOf(ordem.status)
-  const encerrada = ordem.status === 'entregue'
+  // A cancelada fica marcada na etapa em que estava quando foi cancelada.
+  const cancelada = ordem.status === 'cancelada'
+  const desvio = recusada || cancelada
+  const atual = recusada ? FLUXO.indexOf('aguardando_aprovacao') : cancelada ? FLUXO.indexOf(etapaDoCancelamento(ordem) ?? 'aberta') : FLUXO.indexOf(ordem.status)
+  const encerrada = ordem.status === 'entregue' || canceladaEncerrada(ordem)
   const proxima = PROXIMO[ordem.status]?.etapa ?? rotuloStatus(proximoStatus(ordem.status) ?? 'entregue', ordem.forma_devolucao)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 4 }}>
         {FLUXO.map((s, i) => {
-          const feita = i < atual || encerrada
-          const corrente = i === atual && !encerrada
-          const h = recusada && corrente ? 25 : infoStatus(s).matiz
+          const feita = i < atual || (encerrada && !cancelada)
+          const corrente = i === atual && (!encerrada || cancelada)
+          const h = desvio && corrente ? infoStatus(ordem.status).matiz : infoStatus(s).matiz
           return (
             <div key={s} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
               <div
@@ -286,8 +300,8 @@ function Etapas({ ordem }) {
                   fontWeight: corrente ? 500 : 400,
                 }}
               >
-                <i className={`ph ${feita ? 'ph-check' : corrente ? 'ph-circle' : 'ph-lock-simple'}`} style={{ fontSize: 12 }} />
-                {recusada && corrente ? 'Orçamento recusado' : rotuloStatus(s, ordem.forma_devolucao)}
+                <i className={`ph ${feita ? 'ph-check' : corrente ? (cancelada ? 'ph-x-circle' : 'ph-circle') : 'ph-lock-simple'}`} style={{ fontSize: 12 }} />
+                {desvio && corrente ? infoStatus(ordem.status).rotulo : rotuloStatus(s, ordem.forma_devolucao)}
               </span>
             </div>
           )
@@ -295,8 +309,14 @@ function Etapas({ ordem }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-neutral-500)' }}>
         <i className="ph ph-lock-simple" />
-        {encerrada ? (
+        {canceladaEncerrada(ordem) ? (
+          'OS cancelada antes da retirada e encerrada. Para desfazer o cancelamento, use Voltar etapa.'
+        ) : encerrada ? (
           'OS encerrada. Para corrigir algum dado, use Voltar etapa.'
+        ) : cancelada ? (
+          <span>
+            OS cancelada. Falta devolver o equipamento ao cliente: <span style={{ color: 'var(--color-neutral-200)' }}>{proxima}</span>. Para desfazer o cancelamento, use Voltar etapa.
+          </span>
         ) : (
           <span>
             Próxima etapa permitida: <span style={{ color: 'var(--color-neutral-200)' }}>{proxima}</span>. As etapas seguem a sequência do fluxo e não podem ser puladas; um passo dado por engano pode ser desfeito em Voltar etapa.
@@ -681,10 +701,37 @@ function BlocoDevolucao({ ordem, onAlterar }) {
   )
 }
 
+// Motivo do cancelamento, como foi registrado (anotação interna: não aparece na tela do cliente).
+function MotivoCancelamento({ ordem }) {
+  return (
+    <div className="nota">
+      <i className="ph ph-x-circle" style={{ color: PERIGO, marginTop: 2 }} aria-hidden="true" />
+      <span>
+        <b style={{ fontWeight: 500 }}>Motivo:</b> {ordem.motivo_cancelamento || '—'}
+      </span>
+    </div>
+  )
+}
+
 function PainelConcluido({ ordem, refAcao, onAlterarDevolucao }) {
   const entregue = ordem.status === 'entregue'
   const pecas = lerPecas(ordem.pecas_trocadas)
   const entrega = ordem.forma_devolucao === 'entrega'
+  if (ordem.status === 'cancelada') {
+    const pendente = ordem.devolucao_pendente
+    return (
+      <div className="painel-acao" ref={refAcao} tabIndex={-1} style={pendente ? undefined : { borderColor: 'var(--color-neutral-800)', boxShadow: 'none' }}>
+        <Cabecalho titulo="OS cancelada" sub={`Cancelada em ${dataHora(ordem.data_cancelamento).replace(' ', ' às ')}`} />
+        <MotivoCancelamento ordem={ordem} />
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-neutral-300)' }}>
+          {pendente
+            ? `O reparo não será feito. ${entrega ? 'Registre a devolução quando o equipamento for entregue no endereço do cliente.' : 'Registre a devolução quando o cliente retirar o equipamento.'}`
+            : 'O equipamento não chegou a ser retirado e continua com o cliente. A OS está encerrada.'}
+        </div>
+        {pendente && <BlocoDevolucao ordem={ordem} onAlterar={onAlterarDevolucao} />}
+      </div>
+    )
+  }
   if (ordem.status === 'orcamento_recusado') {
     return (
       <div className="painel-acao" ref={refAcao} tabIndex={-1}>
@@ -698,9 +745,13 @@ function PainelConcluido({ ordem, refAcao, onAlterarDevolucao }) {
   }
   return (
     <div className="painel-acao" ref={refAcao} tabIndex={-1} style={entregue ? { borderColor: 'var(--color-neutral-800)', boxShadow: 'none' } : undefined}>
-      <div className="painel-titulo">{entregue ? 'OS entregue' : 'Reparo concluído'}</div>
+      <div className="painel-titulo">{ordem.data_cancelamento ? 'OS cancelada e equipamento devolvido' : entregue ? 'OS entregue' : 'Reparo concluído'}</div>
       {!entregue && <BlocoDevolucao ordem={ordem} onAlterar={onAlterarDevolucao} />}
-      <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-neutral-300)' }}>{ordem.servico_executado || 'Sem reparo: orçamento recusado.'}</div>
+      {ordem.data_cancelamento ? (
+        <MotivoCancelamento ordem={ordem} />
+      ) : (
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-neutral-300)' }}>{ordem.servico_executado || 'Sem reparo: orçamento recusado.'}</div>
+      )}
       {pecas.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {pecas.map((p, i) => (
@@ -833,7 +884,8 @@ function DialogoEntrega({ ordem, onFechar, atualizar }) {
   const [horario, setHorario] = useState(() => hora(agoraIso()))
   const [recebidoPor, setRecebidoPor] = useState(`${ordem.cliente.nome} (cliente)`)
   const acao = useAcao()
-  const semReparo = ordem.status === 'orcamento_recusado'
+  const semReparo = ['orcamento_recusado', 'cancelada'].includes(ordem.status)
+  const cancelada = ordem.status === 'cancelada'
   const entrega = ordem.forma_devolucao === 'entrega'
 
   function confirmar() {
@@ -853,7 +905,11 @@ function DialogoEntrega({ ordem, onFechar, atualizar }) {
   return (
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
       <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="de-titulo">
-        <CabecalhoDialogo id="de-titulo" titulo={entrega ? 'Registrar entrega no endereço' : 'Registrar retirada pelo cliente'} onFechar={onFechar} />
+        <CabecalhoDialogo
+          id="de-titulo"
+          titulo={cancelada ? 'Registrar devolução da OS cancelada' : entrega ? 'Registrar entrega no endereço' : 'Registrar retirada pelo cliente'}
+          onFechar={onFechar}
+        />
         <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
           {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
         </div>
@@ -1105,6 +1161,7 @@ function etapaAnterior(ordem) {
   if (ordem.status === 'entregue') {
     return [...ordem.historico].reverse().find((h) => h.status_novo === 'entregue')?.status_anterior ?? null
   }
+  if (ordem.status === 'cancelada') return etapaDoCancelamento(ordem)
   return {
     aguardando_diagnostico: 'aberta',
     diagnostico_realizado: 'aguardando_diagnostico',
@@ -1126,6 +1183,67 @@ const DESFAZ = {
   orcamento_recusado: 'A recusa é desfeita e o orçamento volta a aguardar a resposta do cliente.',
   pronto_para_retirada: 'As anotações do reparo continuam gravadas.',
   entregue: 'A data da entrega é apagada e a OS volta a ficar pendente.',
+  cancelada: 'O cancelamento é desfeito: a OS volta para a etapa em que estava, com o orçamento como estava.',
+}
+
+// Cancela a OS (desistência do cliente), com motivo. Com o equipamento na assistência, a OS fica cancelada
+// até a devolução sem reparo; antes da retirada, já fica encerrada.
+function DialogoCancelar({ ordem, onFechar, onCancelou }) {
+  const [motivo, setMotivo] = useState('')
+  const acao = useAcao()
+  const naAssistencia = Boolean(ordem.data_retirada)
+
+  function confirmar() {
+    acao.rodar(async () => {
+      onCancelou(await cancelarOrdem(ordem.id, motivo.trim(), ordem.status))
+      onFechar()
+    })
+  }
+
+  return (
+    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
+      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="co-titulo">
+        <CabecalhoDialogo id="co-titulo" titulo="Cancelar OS" onFechar={onFechar} />
+        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+          {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
+        </div>
+        <div className="nota">
+          <i className="ph ph-x-circle" style={{ color: PERIGO, marginTop: 2 }} aria-hidden="true" />
+          <span>
+            Status passa de {ordem.status_rotulo ?? infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>Cancelada</b>.{' '}
+            {naAssistencia
+              ? 'O equipamento está na assistência: depois, registre a devolução ao cliente, sem reparo.'
+              : 'O equipamento ainda está com o cliente: a OS é encerrada.'}
+          </span>
+        </div>
+        <div className="field">
+          <label htmlFor="co-motivo">Motivo *</label>
+          <textarea
+            id="co-motivo"
+            className={`input${acao.erros.motivo ? ' input-erro' : ''}`}
+            placeholder="Ex.: cliente desistiu do reparo"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+          />
+          <ErroCampo erros={acao.erros.motivo} />
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>
+          O motivo fica no histórico e no registro de atividade, com o seu nome. O cliente vê que a OS foi cancelada, mas não vê o motivo. Um cancelamento por engano
+          pode ser desfeito em Voltar etapa.
+        </div>
+        <ErroAcao acao={acao} campos={['motivo']} />
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onFechar}>
+            Voltar
+          </button>
+          <button className="btn btn-secondary btn-perigo" disabled={acao.enviando || !motivo.trim()} onClick={confirmar}>
+            <i className="ph ph-x-circle" />
+            {acao.enviando ? 'Cancelando…' : 'Cancelar OS'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // Volta a OS uma etapa. O histórico ganha um registro novo com o motivo; nada do que já estava lá é apagado.
@@ -1225,6 +1343,7 @@ function resumos(ordem) {
     em_reparo: [diagnostico, problema],
     pronto_para_retirada: [diagnostico, devolucao],
     entregue: [diagnostico, devolucao],
+    cancelada: ordem.devolucao_pendente ? [problema, devolucao] : [problema, retirada],
   }
   return mapa[ordem.status]
 }
@@ -1240,6 +1359,7 @@ const DESCRICAO_HISTORICO = {
   orcamento_recusado: 'Recusa registrada',
   pronto_para_retirada: 'Reparo concluído',
   entregue: 'OS encerrada',
+  cancelada: 'OS cancelada',
 }
 
 // Aviso no lugar da ação da etapa para quem não é o responsável pela OS nem admin.
@@ -1346,7 +1466,11 @@ function Historico({ ordem }) {
                 <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{diaMesHora(h.data_hora)}</span>
               </div>
               <div style={{ color: 'var(--color-neutral-500)' }}>
-                {h.retorno ? `Voltou de ${h.status_anterior_rotulo ?? infoStatus(h.status_anterior).rotulo}. Motivo: ${h.observacao}` : h.observacao || DESCRICAO_HISTORICO[h.status_novo]}
+                {h.retorno
+                  ? `Voltou de ${h.status_anterior_rotulo ?? infoStatus(h.status_anterior).rotulo}. Motivo: ${h.observacao}`
+                  : h.status_novo === 'cancelada'
+                    ? `Cancelada em ${h.status_anterior_rotulo ?? infoStatus(h.status_anterior).rotulo}. Motivo: ${h.observacao}`
+                    : h.observacao || DESCRICAO_HISTORICO[h.status_novo]}
               </div>
               <div style={{ color: 'var(--color-neutral-600)', fontSize: 12 }}>por {h.usuario?.nome ?? 'cliente, pelo link'}</div>
             </div>
@@ -1426,7 +1550,7 @@ export default function DetalheOs({ id }) {
 
   const status = ordem?.status
   useEffect(() => {
-    if (!['pronto_para_retirada', 'orcamento_recusado'].includes(status)) return
+    if (!['pronto_para_retirada', 'orcamento_recusado', 'cancelada'].includes(status)) return
     let ativo = true
     mensagemWhatsApp(id)
       .then((m) => ativo && setMensagemApi(m))
@@ -1472,14 +1596,16 @@ export default function DetalheOs({ id }) {
   const { cliente, equipamento } = ordem
   const endereco = cliente.endereco ?? clientes.find((c) => c.id === cliente.id)?.endereco
   const entregue = status === 'entregue'
+  // Entregue ou cancelada antes da retirada: não há mais etapa a cumprir.
+  const encerrada = entregue || canceladaEncerrada(ordem)
   // Só o técnico responsável ou um admin altera a OS (a API recusa os demais com 403).
   const podeAlterar = admin || (usuario != null && usuario.id === ordem.responsavel_id)
-  const proximo = podeAlterar ? PROXIMO[status] : null
+  const proximo = podeAlterar && !encerrada ? PROXIMO[status] : null
   const waNumero = `55${cliente.telefone_whatsapp.replace(/\D/g, '')}`
 
   function acaoPrincipal() {
     if (['orcamento_enviado', 'aguardando_aprovacao'].includes(status)) return setDialogo({ tipo: 'resposta', situacao: 'aprovado' })
-    if (['pronto_para_retirada', 'orcamento_recusado'].includes(status)) return setDialogo({ tipo: 'entrega' })
+    if (['pronto_para_retirada', 'orcamento_recusado', 'cancelada'].includes(status)) return setDialogo({ tipo: 'entrega' })
     refAcao.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     refAcao.current?.focus({ preventScroll: true })
   }
@@ -1534,7 +1660,7 @@ export default function DetalheOs({ id }) {
   else if (status === 'orcamento_enviado' || status === 'aguardando_aprovacao')
     painel = <PainelResposta ordem={ordem} refAcao={refAcao} onResponder={(situacao) => setDialogo({ tipo: 'resposta', situacao })} />
   else if (status === 'em_reparo') painel = <PainelReparo {...props} enderecoCliente={endereco} />
-  else painel = <PainelConcluido ordem={ordem} refAcao={refAcao} onAlterarDevolucao={podeAlterar && !entregue ? () => setDialogo({ tipo: 'devolucao' }) : null} />
+  else painel = <PainelConcluido ordem={ordem} refAcao={refAcao} onAlterarDevolucao={podeAlterar && !encerrada ? () => setDialogo({ tipo: 'devolucao' }) : null} />
   // Quem não é o responsável nem admin só consulta: a ação da etapa dá lugar a um aviso.
   if (!podeAlterar && ['aberta', 'aguardando_diagnostico', 'diagnostico_realizado', 'orcamento_enviado', 'aguardando_aprovacao', 'em_reparo'].includes(status))
     painel = <AvisoSoConsulta ordem={ordem} />
@@ -1550,10 +1676,16 @@ export default function DetalheOs({ id }) {
         enviando={acaoOrcamento.enviando}
       />
     )
-  } else if (mensagemApi && ['pronto_para_retirada', 'orcamento_recusado'].includes(status)) {
+  } else if (mensagemApi && ['pronto_para_retirada', 'orcamento_recusado', 'cancelada'].includes(status)) {
     mensagem = (
       <CartaoMensagem
-        titulo={status === 'pronto_para_retirada' ? `Aviso de ${rotuloStatus(status, ordem.forma_devolucao).toLowerCase()}` : 'Aviso de devolução sem reparo'}
+        titulo={
+          status === 'pronto_para_retirada'
+            ? `Aviso de ${rotuloStatus(status, ordem.forma_devolucao).toLowerCase()}`
+            : status === 'cancelada'
+              ? 'Aviso de cancelamento'
+              : 'Aviso de devolução sem reparo'
+        }
         texto={mensagemApi.mensagem}
         nota={`Abre wa.me/${mensagemApi.telefone} com o texto preenchido. Reenvie se o cliente não responder.`}
         onEnviar={() => acaoWhatsApp.rodar(() => abrirWhatsAppDaApi(id))}
@@ -1574,15 +1706,15 @@ export default function DetalheOs({ id }) {
 
   return (
     <Layout
-      ativo={entregue ? 'os' : 'painel'}
+      ativo={encerrada ? 'os' : 'painel'}
       trilha={
         <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btn btn-icon" style={{ width: 28, height: 28, color: 'var(--color-neutral-400)' }} onClick={() => window.history.back()} aria-label="Voltar">
             <i className="ph ph-arrow-left" />
           </button>
           <span>
-            <a href={entregue ? '#/os' : '#/pendentes'} style={{ color: 'inherit' }}>
-              {entregue ? 'Buscar OS' : 'OS pendentes'}
+            <a href={encerrada ? '#/os' : '#/pendentes'} style={{ color: 'inherit' }}>
+              {encerrada ? 'Buscar OS' : 'OS pendentes'}
             </a>{' '}
             / <span style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>{ordem.numero}</span>
           </span>
@@ -1625,7 +1757,7 @@ export default function DetalheOs({ id }) {
             <i className="ph ph-whatsapp-logo" />
             Enviar WhatsApp
           </button>
-          {podeAlterar && !entregue && (
+          {podeAlterar && !encerrada && (
             <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'editar' })}>
               <i className="ph ph-pencil-simple" />
               Editar
@@ -1635,6 +1767,12 @@ export default function DetalheOs({ id }) {
             <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'voltar' })}>
               <i className="ph ph-arrow-u-up-left" />
               Voltar etapa
+            </button>
+          )}
+          {podeAlterar && CANCELAVEIS.includes(status) && (
+            <button className="btn btn-ghost" style={{ color: PERIGO }} onClick={() => setDialogo({ tipo: 'cancelar' })}>
+              <i className="ph ph-x-circle" />
+              Cancelar OS
             </button>
           )}
           {proximo && (
@@ -1698,6 +1836,7 @@ export default function DetalheOs({ id }) {
       {dialogo?.tipo === 'devolucao' && <DialogoDevolucao ordem={ordem} onFechar={() => setDialogo(null)} onSalvo={substituir} />}
       {dialogo?.tipo === 'editar' && <DialogoEditar ordem={ordem} onFechar={() => setDialogo(null)} onSalvo={substituir} />}
       {dialogo?.tipo === 'voltar' && <DialogoVoltarEtapa ordem={ordem} onFechar={() => setDialogo(null)} onVoltou={substituir} />}
+      {dialogo?.tipo === 'cancelar' && <DialogoCancelar ordem={ordem} onFechar={() => setDialogo(null)} onCancelou={substituir} />}
     </Layout>
   )
 }

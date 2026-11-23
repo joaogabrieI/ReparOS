@@ -48,14 +48,21 @@ class HistoricoStatus extends Model
             }
 
             $os = $registro->ordemServico;
+            $cancelou = ! $registro->retorno && $registro->status_novo === StatusOrdemServico::Cancelada;
             Auditoria::registrar(
                 $os->assistenciaId(),
-                $registro->retorno ? 'voltou_etapa' : 'mudou_status',
+                match (true) {
+                    $registro->retorno => 'voltou_etapa',
+                    $cancelou => 'cancelou',
+                    default => 'mudou_status',
+                },
                 'ordem_servico',
                 $os->id,
-                $registro->retorno
-                    ? "OS {$os->numero}: voltou de {$registro->status_anterior_rotulo} para {$registro->status_novo_rotulo}. Motivo: {$registro->observacao}"
-                    : "OS {$os->numero}: {$registro->status_anterior_rotulo} → {$registro->status_novo_rotulo}",
+                match (true) {
+                    $registro->retorno => "OS {$os->numero}: voltou de {$registro->status_anterior_rotulo} para {$registro->status_novo_rotulo}. Motivo: {$registro->observacao}",
+                    $cancelou => "OS {$os->numero}: cancelada em {$registro->status_anterior_rotulo}. Motivo: {$registro->observacao}",
+                    default => "OS {$os->numero}: {$registro->status_anterior_rotulo} → {$registro->status_novo_rotulo}",
+                },
                 ['status' => $registro->status_anterior->value],
                 ['status' => $registro->status_novo->value],
                 $registro->usuario_id ? null : false,

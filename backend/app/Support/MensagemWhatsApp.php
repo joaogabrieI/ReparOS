@@ -44,12 +44,21 @@ class MensagemWhatsApp
                 $os->orcamento ? 'Total: '.$this->moeda($os->orcamento->valor_total) : null,
                 'Quando fica bom pra você?',
             ])),
-            StatusOrdemServico::Entregue => array_values(array_filter([
-                $this->entrega()
-                    ? "{$ola} Seu {$aparelho} foi entregue no seu endereço. Obrigado pela confiança!"
-                    : "{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!",
-                $this->garantia(),
-            ])),
+            StatusOrdemServico::Cancelada => match (true) {
+                $os->data_retirada === null => ["{$ola} Conforme combinado, cancelamos o reparo do seu {$aparelho}. Se precisar de nós, é só chamar."],
+                $this->entrega() => ["{$ola} Conforme combinado, cancelamos o reparo do seu {$aparelho}. Vamos devolver o aparelho, sem reparo, no endereço {$os->endereco_entrega}.", $this->quandoEntregar()],
+                default => ["{$ola} Conforme combinado, cancelamos o reparo do seu {$aparelho}. O aparelho está disponível para retirada na assistência, sem reparo. Quando fica bom pra você?"],
+            },
+            StatusOrdemServico::Entregue => $os->data_cancelamento
+                ? [$this->entrega()
+                    ? "{$ola} Seu {$aparelho} foi devolvido no seu endereço, sem reparo, como combinado no cancelamento da OS."
+                    : "{$ola} Seu {$aparelho} foi devolvido, sem reparo, como combinado no cancelamento da OS."]
+                : array_values(array_filter([
+                    $this->entrega()
+                        ? "{$ola} Seu {$aparelho} foi entregue no seu endereço. Obrigado pela confiança!"
+                        : "{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!",
+                    $this->garantia(),
+                ])),
         };
 
         $acompanhar = "Acompanhe o reparo pelo link: {$this->linkAcompanhamento()}";

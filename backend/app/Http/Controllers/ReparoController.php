@@ -65,11 +65,18 @@ class ReparoController extends Controller
 
     /**
      * Entrega do equipamento e encerramento da OS (RF15). Vale para "Pronto para retirada" e também
-     * para "Orçamento recusado", quando o equipamento volta ao cliente sem reparo.
+     * para "Orçamento recusado" e "Cancelada", quando o equipamento volta ao cliente sem reparo.
+     * OS cancelada antes da retirada não tem equipamento a devolver: já está encerrada.
      */
     public function entrega(EntregaRequest $request, OrdemServico $ordemServico): JsonResponse
     {
-        $semReparo = $ordemServico->status === StatusOrdemServico::OrcamentoRecusado;
+        abort_if(
+            $ordemServico->status === StatusOrdemServico::Cancelada && $ordemServico->data_retirada === null,
+            422,
+            'A OS foi cancelada antes da retirada: o equipamento continua com o cliente e não há o que devolver.',
+        );
+
+        $semReparo = in_array($ordemServico->status, [StatusOrdemServico::OrcamentoRecusado, StatusOrdemServico::Cancelada], true);
 
         DB::transaction(function () use ($request, $ordemServico, $semReparo) {
             // Só troca a forma de devolução se a OS ainda puder ser entregue; senão mudarStatus() recusa.

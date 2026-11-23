@@ -4,7 +4,7 @@ import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
 import { diaMes, hora, tempoNaEtapa } from '../data/formato'
-import { estaParada } from '../data/regras'
+import { estaParada, estaPendente } from '../data/regras'
 import { corStatus, DIAS_PARADA, iconeEquipamento, infoStatus, PENDENTES } from '../data/status'
 
 const PERIGO = 'oklch(0.84 0.12 25)'
@@ -68,7 +68,7 @@ export default function Inicio() {
   const [agora] = useState(() => new Date())
   const [busca, setBusca] = useState('')
 
-  const pendentes = ordens.filter((o) => o.status !== 'entregue')
+  const pendentes = ordens.filter(estaPendente)
   const paradas = pendentes.filter(estaParada)
   const prontas = pendentes.filter((o) => o.status === 'pronto_para_retirada')
   const abertasHoje = ordens.filter((o) => mesmoDia(new Date(o.data_abertura), agora)).length

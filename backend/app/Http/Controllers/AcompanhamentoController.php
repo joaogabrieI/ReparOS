@@ -42,7 +42,14 @@ class AcompanhamentoController extends Controller
             'equipamento' => $os->equipamento->only('tipo', 'marca', 'modelo'),
             'status' => $os->status,
             'status_rotulo' => $os->status_rotulo,
-            'proximos' => array_map(fn (StatusOrdemServico $s) => $s->rotuloPara($os->forma_devolucao), $os->status->proximos()),
+            // Cancelada antes da retirada não tem próximo passo: o equipamento nem saiu do cliente.
+            'proximos' => $os->status === StatusOrdemServico::Cancelada && ! $os->devolucao_pendente
+                ? []
+                : array_map(fn (StatusOrdemServico $s) => $s->rotuloPara($os->forma_devolucao), $os->status->proximos()),
+            // Cancelamento: o cliente vê que a OS foi cancelada e quando; o motivo é anotação interna.
+            'cancelada' => $os->data_cancelamento !== null,
+            'data_cancelamento' => $os->data_cancelamento,
+            'devolucao_pendente' => $os->devolucao_pendente,
             // Como o equipamento volta: o cliente vê se retira ou se recebe em casa, e a data combinada. O endereço não aparece.
             'forma_devolucao' => $os->forma_devolucao,
             'forma_devolucao_rotulo' => $os->forma_devolucao_rotulo,

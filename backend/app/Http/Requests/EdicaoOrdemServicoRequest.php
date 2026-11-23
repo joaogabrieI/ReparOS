@@ -30,18 +30,19 @@ class EdicaoOrdemServicoRequest extends FormRequest
         'equipamento_id' => [S::Aberta, S::AguardandoDiagnostico],
         'retirada_agendada' => [S::Aberta, S::AguardandoDiagnostico],
         'problema_relatado' => [S::Aberta, S::AguardandoDiagnostico, S::DiagnosticoRealizado, S::OrcamentoEnviado,
-            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada],
+            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada, S::Cancelada],
         'responsavel_id' => [S::Aberta, S::AguardandoDiagnostico, S::DiagnosticoRealizado, S::OrcamentoEnviado,
-            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada],
+            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada, S::Cancelada],
         'diagnostico' => [S::DiagnosticoRealizado, S::OrcamentoEnviado, S::AguardandoAprovacao, S::OrcamentoRecusado,
             S::EmReparo, S::ProntoParaRetirada],
-        // Retirada ou entrega pode ser decidida e trocada até o equipamento voltar para o cliente.
+        // Retirada ou entrega pode ser decidida e trocada até o equipamento voltar para o cliente,
+        // inclusive na OS cancelada que ainda aguarda a devolução.
         'forma_devolucao' => [S::Aberta, S::AguardandoDiagnostico, S::DiagnosticoRealizado, S::OrcamentoEnviado,
-            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada],
+            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada, S::Cancelada],
         'endereco_entrega' => [S::Aberta, S::AguardandoDiagnostico, S::DiagnosticoRealizado, S::OrcamentoEnviado,
-            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada],
+            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada, S::Cancelada],
         'entrega_agendada' => [S::Aberta, S::AguardandoDiagnostico, S::DiagnosticoRealizado, S::OrcamentoEnviado,
-            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada],
+            S::AguardandoAprovacao, S::OrcamentoRecusado, S::EmReparo, S::ProntoParaRetirada, S::Cancelada],
         'servico_executado' => [S::EmReparo, S::ProntoParaRetirada],
         'pecas_trocadas' => [S::EmReparo, S::ProntoParaRetirada],
     ];
@@ -112,6 +113,12 @@ class EdicaoOrdemServicoRequest extends FormRequest
 
                 if ($status === S::Entregue) {
                     $validator->errors()->add('status', 'A OS já foi entregue e não pode ser editada. Volte a etapa para corrigir algum dado.');
+
+                    return;
+                }
+
+                if ($status === S::Cancelada && $os->data_retirada === null) {
+                    $validator->errors()->add('status', 'A OS foi cancelada antes da retirada e está encerrada. Volte a etapa para corrigir algum dado.');
 
                     return;
                 }

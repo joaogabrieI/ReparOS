@@ -3,7 +3,7 @@ import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { detalhar, estaParada } from '../data/regras'
+import { detalhar, estaParada, estaPendente } from '../data/regras'
 import { corStatus, DIAS_PARADA, iconeEquipamento, PENDENTES, infoStatus } from '../data/status'
 import { retirada, tempoNaEtapa } from '../data/formato'
 import { listarOrdens } from '../services/ordens'
@@ -20,7 +20,7 @@ export default function OsPendentes({ buscaInicial = '' }) {
   const [encontradas, setEncontradas] = useState(null)
   const [erro, setErro] = useState('')
 
-  const pendentes = ordens.filter((o) => o.status !== 'entregue')
+  const pendentes = ordens.filter(estaPendente)
   const paradas = pendentes.filter(estaParada)
   const filtrando = Boolean(busca.trim()) || soParadas
 
@@ -46,8 +46,8 @@ export default function OsPendentes({ buscaInicial = '' }) {
   const visiveis = filtrando ? (encontradas ?? pendentes) : pendentes
 
   const contagem = PENDENTES.map((status) => ({ status, n: pendentes.filter((o) => o.status === status).length }))
-  // A recusa só aparece na faixa quando existir alguma OS nela.
-  const faixa = contagem.filter((c) => c.status !== 'orcamento_recusado' || c.n > 0)
+  // A recusa e o cancelamento só aparecem na faixa quando existir alguma OS neles.
+  const faixa = contagem.filter((c) => !['orcamento_recusado', 'cancelada'].includes(c.status) || c.n > 0)
   const grupos = PENDENTES.map((status) => ({ status, linhas: visiveis.filter((o) => o.status === status) })).filter((g) => g.linhas.length)
 
   return (

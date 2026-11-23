@@ -1,4 +1,5 @@
 import { useDados } from '../data/contexto'
+import { estaPendente } from '../data/regras'
 import { api, apagarToken } from '../services/api'
 
 // Encerra o token na API (se ainda valer) e volta para a tela de entrar.
@@ -34,7 +35,7 @@ function iniciais(nome = '') {
 // Navegação principal da área da assistência (ReparOSSidebar, nav v2).
 export default function Sidebar({ ativo }) {
   const { ordens, usuario, admin } = useDados()
-  const pendentes = ordens.filter((o) => o.status !== 'entregue').length
+  const pendentes = ordens.filter(estaPendente).length
 
   return (
     <aside
