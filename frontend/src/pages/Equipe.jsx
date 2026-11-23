@@ -117,6 +117,90 @@ function DialogoUsuario({ usuario, onFechar, onSalvo }) {
   )
 }
 
+// Confirma a desativação. Se o usuário for responsável por OS em andamento, o admin escolhe para quem elas vão:
+// como só o responsável ou um admin altera a OS, sem isso elas ficariam travadas para o resto da equipe.
+function DialogoDesativar({ usuario, usuarios, onFechar, onDesativado }) {
+  const quantas = usuario.ordens_em_andamento ?? 0
+  const destinos = usuarios.filter((u) => u.ativo && u.id !== usuario.id)
+  const [destino, setDestino] = useState('')
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function confirmar(e) {
+    e.preventDefault()
+    if (quantas > 0 && !destino) {
+      setErro('Escolha para quem transferir as OS.')
+      return
+    }
+    setEnviando(true)
+    setErro('')
+    try {
+      const r = await desativarUsuario(usuario.id, quantas > 0 ? Number(destino) : null)
+      const recebeu = destinos.find((u) => u.id === Number(destino))
+      onDesativado(
+        r.os_transferidas
+          ? `${usuario.nome} foi desativado. ${r.os_transferidas === 1 ? '1 OS passou' : `${r.os_transferidas} OS passaram`} para ${recebeu?.nome ?? 'o usuário escolhido'}.`
+          : `${usuario.nome} foi desativado.`,
+      )
+    } catch (falha) {
+      setErro(falha.erros?.transferir_para_id?.[0] ?? falha.message)
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Dialogo as="form" tituloId="d-titulo" descricaoId="d-descricao" onFechar={onFechar} onSubmit={confirmar}>
+      <span id="d-titulo" className="dialog-title">
+        Desativar {usuario.nome}?
+      </span>
+      <p id="d-descricao" style={{ margin: 0, fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+        A pessoa sai de todas as sessões e não entra mais. O histórico do que ela fez continua com o nome dela.
+      </p>
+
+      {quantas > 0 &&
+        (destinos.length ? (
+          <div className="field">
+            <label htmlFor="d-destino">
+              Transferir {quantas === 1 ? 'a OS em andamento' : `as ${quantas} OS em andamento`} para *
+            </label>
+            <select id="d-destino" className={`input${erro ? ' input-erro' : ''}`} value={destino} onChange={(e) => setDestino(e.target.value)} autoFocus>
+              <option value="">Escolha um usuário ativo</option>
+              {destinos.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome} ({u.perfil_rotulo})
+                </option>
+              ))}
+            </select>
+            <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+              {quantas === 1 ? 'Ela passa' : 'Elas passam'} a ter esse técnico como responsável, com registro nas atividades.
+            </span>
+          </div>
+        ) : (
+          <div className="nota">
+            <i className="ph ph-warning" style={{ marginTop: 2 }} />
+            {usuario.nome} é responsável por {quantas === 1 ? '1 OS em andamento' : `${quantas} OS em andamento`} e não há outro usuário ativo para recebê-las. Crie
+            ou reative um usuário antes.
+          </div>
+        ))}
+
+      {erro && (
+        <div role="alert">
+          <ErroCampo erros={[erro]} />
+        </div>
+      )}
+
+      <div className="dialog-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button type="button" className="btn btn-ghost" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={enviando || (quantas > 0 && !destinos.length)}>
+          {enviando ? 'Desativando…' : quantas > 0 ? 'Transferir e desativar' : 'Desativar'}
+        </button>
+      </div>
+    </Dialogo>
+  )
+}
+
 // Nome, WhatsApp da loja e dias para uma OS ser considerada parada.
 function PainelAssistencia() {
   const { recarregar } = useDados()
@@ -198,7 +282,9 @@ export default function Equipe() {
   const { usuario: eu, admin, recarregar } = useDados()
   const [usuarios, setUsuarios] = useState(null)
   const [dialogo, setDialogo] = useState(null)
+  const [desativando, setDesativando] = useState(null)
   const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
 
   const carregar = useCallback(() => {
     listarUsuarios()
@@ -212,8 +298,13 @@ export default function Equipe() {
 
   async function alternarAtivo(u) {
     setErro('')
+    setAviso('')
+    if (u.ativo) {
+      setDesativando(u)
+      return
+    }
     try {
-      await (u.ativo ? desativarUsuario(u.id) : reativarUsuario(u.id))
+      await reativarUsuario(u.id)
       carregar()
       recarregar()
     } catch (falha) {
@@ -261,6 +352,9 @@ export default function Equipe() {
             <ErroCampo erros={[erro]} />
           </div>
         )}
+        <div role="status" style={{ fontSize: 13 }}>
+          {aviso}
+        </div>
 
         <div className="painel tabela">
           <div className="tabela-cabecalho" style={{ gridTemplateColumns: GRID }}>
@@ -287,6 +381,11 @@ export default function Equipe() {
               <span>
                 <span className={`tag ${u.perfil === 'admin' ? 'tag-accent' : 'tag-neutral'}`}>{u.perfil_rotulo}</span>
                 {!u.ativo && <span className="tag tag-outline" style={{ marginLeft: 6 }}>Desativado</span>}
+                {u.ativo && u.ordens_em_andamento > 0 && (
+                  <span className="muted" style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+                    {u.ordens_em_andamento === 1 ? '1 OS em andamento' : `${u.ordens_em_andamento} OS em andamento`}
+                  </span>
+                )}
               </span>
               <span style={{ color: 'var(--color-neutral-500)' }}>{u.ultimo_acesso_em ? dataHora(u.ultimo_acesso_em) : 'Nunca entrou'}</span>
               <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
@@ -307,9 +406,23 @@ export default function Equipe() {
         <div className="nota">
           <i className="ph ph-info" style={{ marginTop: 2 }} />
           Usuários não são apagados: ao desativar, a pessoa sai de todas as sessões e não entra mais, mas o histórico do que ela fez continua com o
-          nome dela. A assistência precisa manter pelo menos um administrador ativo.
+          nome dela. As OS em andamento dela passam para o usuário que você escolher. A assistência precisa manter pelo menos um administrador ativo.
         </div>
       </div>
+
+      {desativando && (
+        <DialogoDesativar
+          usuario={desativando}
+          usuarios={usuarios ?? []}
+          onFechar={() => setDesativando(null)}
+          onDesativado={(mensagem) => {
+            setDesativando(null)
+            setAviso(mensagem)
+            carregar()
+            recarregar()
+          }}
+        />
+      )}
 
       {dialogo && (
         <DialogoUsuario

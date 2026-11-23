@@ -213,12 +213,13 @@ export default function Atividades({ entidade = '', entidadeId = '' }) {
 }
 
 // Campos que guardam o id de um usuário: aparecem com o nome.
-const CAMPOS_USUARIO = ['responsavel_id', 'usuario_id', 'criado_por_id']
+const CAMPOS_USUARIO = ['responsavel_id', 'usuario_id', 'criado_por_id', 'transferidas_para_id']
 
 // Antes e depois de cada campo alterado.
 function Detalhes({ antes, depois, usuarios }) {
   const campos = [...new Set([...Object.keys(antes ?? {}), ...Object.keys(depois ?? {})])]
-  const texto = (v) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v))
+  const texto = (v) =>
+    v === null || v === undefined || v === '' ? '—' : Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : String(v)
   const nome = (campo, v) => (CAMPOS_USUARIO.includes(campo) ? usuarios.find((u) => u.id === Number(v))?.nome : null)
   return (
     <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) minmax(0,1fr)', gap: '4px 12px', fontSize: 12.5 }}>

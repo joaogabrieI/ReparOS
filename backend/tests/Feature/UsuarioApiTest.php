@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\PerfilUsuario;
+use App\Enums\StatusOrdemServico;
+use App\Models\OrdemServico;
 use App\Models\RegistroAtividade;
 use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -21,6 +23,8 @@ class UsuarioApiTest extends TestCase
     private const SENHA = 'Senha@123';
 
     private Usuario $admin;
+
+    private int $clientesCriados = 0;
 
     protected function setUp(): void
     {
@@ -152,6 +156,112 @@ class UsuarioApiTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->withToken($tokenAdmin)->postJson("/api/usuarios/{$tecnico->id}/reativar")->assertOk()->assertJsonPath('ativo', true);
         $this->postJson('/api/login', ['email' => 'teste-tec@reparos.test', 'password' => self::SENHA])->assertOk();
+    }
+
+    /**
+     * OS com o responsável informado, já na etapa pedida (montada direto no banco).
+     */
+    private function criarOs(Usuario $responsavel, StatusOrdemServico $status = StatusOrdemServico::Aberta, bool $retirada = false): OrdemServico
+    {
+        $equipamento = $this->admin->clientes()
+            ->create(['nome' => 'Cliente', 'telefone_whatsapp' => '1198000'.str_pad((string) ++$this->clientesCriados, 4, '0', STR_PAD_LEFT)])
+            ->equipamentos()
+            ->create(['tipo' => 'Notebook', 'marca' => 'Dell', 'modelo' => 'Inspiron']);
+
+        $os = OrdemServico::create(['equipamento_id' => $equipamento->id, 'problema_relatado' => 'Não liga', 'responsavel_id' => $responsavel->id]);
+        $os->forceFill(['status' => $status, 'data_retirada' => $retirada ? now() : null])->save();
+
+        return $os;
+    }
+
+    public function test_desativar_transfere_as_os_em_andamento_para_quem_o_admin_escolher(): void
+    {
+        $tecnico = $this->criarUsuario('teste-tec@reparos.test');
+        $outro = $this->criarUsuario('teste-tec2@reparos.test');
+        $emReparo = $this->criarOs($tecnico, StatusOrdemServico::EmReparo, retirada: true);
+        $aberta = $this->criarOs($tecnico);
+        $canceladaComEquipamento = $this->criarOs($tecnico, StatusOrdemServico::Cancelada, retirada: true);
+        $entregue = $this->criarOs($tecnico, StatusOrdemServico::Entregue, retirada: true);
+        $canceladaEncerrada = $this->criarOs($tecnico, StatusOrdemServico::Cancelada);
+        Sanctum::actingAs($this->admin);
+
+        $this->getJson('/api/usuarios')->assertOk()->assertJsonFragment(['id' => $tecnico->id, 'ordens_em_andamento' => 3]);
+
+        $this->postJson("/api/usuarios/{$tecnico->id}/desativar", ['transferir_para_id' => $outro->id])
+            ->assertOk()
+            ->assertJsonPath('ativo', false)
+            ->assertJsonPath('os_transferidas', 3);
+
+        foreach ([$emReparo, $aberta, $canceladaComEquipamento] as $os) {
+            $this->assertSame($outro->id, $os->fresh()->responsavel_id);
+            $this->assertDatabaseHas('registros_atividade', [
+                'acao' => 'alterou', 'entidade' => 'ordem_servico', 'entidade_id' => $os->id, 'usuario_id' => $this->admin->id,
+                'descricao' => "Alterou a OS {$os->numero}. Motivo: transferida para {$outro->nome} ao desativar {$tecnico->nome}",
+            ]);
+        }
+        // Encerradas continuam com quem as atendeu.
+        $this->assertSame($tecnico->id, $entregue->fresh()->responsavel_id);
+        $this->assertSame($tecnico->id, $canceladaEncerrada->fresh()->responsavel_id);
+
+        $registro = RegistroAtividade::where('acao', 'desativou_usuario')->where('entidade_id', $tecnico->id)->firstOrFail();
+        $this->assertSame("Desativou o usuário {$tecnico->nome} e transferiu 3 OS para {$outro->nome}", $registro->descricao);
+        $this->assertSame([$emReparo->numero, $aberta->numero, $canceladaComEquipamento->numero], $registro->dados_novos['os_transferidas']);
+        $this->assertSame($outro->id, $registro->dados_novos['transferidas_para_id']);
+
+        // O novo responsável já consegue mexer na OS.
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($outro);
+        $this->putJson("/api/ordens-servico/{$aberta->id}", ['problema_relatado' => 'Não liga nem carrega'])->assertOk();
+    }
+
+    public function test_sem_destino_a_desativacao_de_quem_tem_os_em_andamento_e_recusada(): void
+    {
+        $tecnico = $this->criarUsuario('teste-tec@reparos.test');
+        $os = $this->criarOs($tecnico, StatusOrdemServico::AguardandoDiagnostico, retirada: true);
+        Sanctum::actingAs($this->admin);
+
+        $this->postJson("/api/usuarios/{$tecnico->id}/desativar")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['transferir_para_id' => "{$tecnico->nome} é responsável por 1 OS em andamento. Escolha para quem transferir antes de desativar."]);
+
+        $this->assertTrue($tecnico->fresh()->ativo);
+        $this->assertSame($tecnico->id, $os->fresh()->responsavel_id);
+        $this->assertDatabaseMissing('registros_atividade', ['acao' => 'desativou_usuario', 'entidade_id' => $tecnico->id]);
+    }
+
+    public function test_destino_precisa_ser_outro_usuario_ativo_da_mesma_assistencia(): void
+    {
+        $tecnico = $this->criarUsuario('teste-tec@reparos.test');
+        $inativo = $this->criarUsuario('teste-inativo@reparos.test');
+        $inativo->forceFill(['ativo' => false])->save();
+        $deFora = Usuario::criarComAssistencia([
+            'nome' => 'Outro Admin', 'nome_assistencia' => 'Outra Assistência', 'email' => 'teste-outra@reparos.test', 'password' => self::SENHA,
+        ]);
+        $os = $this->criarOs($tecnico);
+        Sanctum::actingAs($this->admin);
+
+        foreach ([$tecnico->id, $inativo->id, $deFora->id, 999999] as $destino) {
+            $this->postJson("/api/usuarios/{$tecnico->id}/desativar", ['transferir_para_id' => $destino])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['transferir_para_id' => 'Escolha outro usuário ativo da assistência para receber as OS.']);
+        }
+
+        $this->assertTrue($tecnico->fresh()->ativo);
+        $this->assertSame($tecnico->id, $os->fresh()->responsavel_id);
+    }
+
+    public function test_quem_nao_tem_os_em_andamento_e_desativado_sem_escolher_destino(): void
+    {
+        $tecnico = $this->criarUsuario('teste-tec@reparos.test');
+        $this->criarOs($tecnico, StatusOrdemServico::Entregue, retirada: true);
+        Sanctum::actingAs($this->admin);
+
+        $this->postJson("/api/usuarios/{$tecnico->id}/desativar")
+            ->assertOk()
+            ->assertJsonPath('ativo', false)
+            ->assertJsonPath('os_transferidas', 0);
+
+        $this->assertDatabaseHas('registros_atividade', ['acao' => 'desativou_usuario', 'entidade_id' => $tecnico->id, 'descricao' => "Desativou o usuário {$tecnico->nome}"]);
     }
 
     public function test_admin_edita_usuario_e_troca_a_senha(): void

@@ -10,7 +10,10 @@ export function salvarUsuario(dados, id) {
   return id ? api(`/usuarios/${id}`, { method: 'PUT', body: dados }) : api('/usuarios', { method: 'POST', body: dados })
 }
 
-export const desativarUsuario = (id) => api(`/usuarios/${id}/desativar`, { method: 'POST' })
+// Se o usuário for responsável por OS em andamento, `transferirParaId` (outro usuário ativo) é obrigatório:
+// as OS passam para ele na mesma hora. A resposta traz `os_transferidas` (quantas foram).
+export const desativarUsuario = (id, transferirParaId = null) =>
+  api(`/usuarios/${id}/desativar`, { method: 'POST', body: transferirParaId ? { transferir_para_id: transferirParaId } : {} })
 export const reativarUsuario = (id) => api(`/usuarios/${id}/reativar`, { method: 'POST' })
 
 // Configurações da assistência: nome, telefone e dias_limite_parada.

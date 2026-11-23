@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PerfilUsuario;
+use App\Http\Requests\DesativacaoUsuarioRequest;
 use App\Http\Requests\UsuarioRequest;
 use App\Models\Usuario;
 use App\Support\Auditoria;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Usuários da assistência. Todos veem a lista (para escolher o técnico responsável pela OS);
@@ -18,15 +20,18 @@ use Illuminate\Support\Facades\DB;
 class UsuarioController extends Controller
 {
     /**
-     * Filtro opcional: `ativos=1` traz só os ativos.
+     * Filtro opcional: `ativos=1` traz só os ativos. `ordens_em_andamento` conta as OS pendentes de que
+     * cada um é responsável (a tela da Equipe usa ao desativar).
      */
     public function index(Request $request): JsonResponse
     {
         $usuarios = $request->user()->assistencia->usuarios()
+            ->select(['id', 'nome', 'email', 'perfil', 'ativo', 'ultimo_acesso_em', 'created_at'])
+            ->withCount(['ordensResponsavel as ordens_em_andamento' => fn ($query) => $query->pendentes()])
             ->when($request->boolean('ativos'), fn ($query) => $query->where('ativo', true))
             ->orderByDesc('ativo')
             ->orderBy('nome')
-            ->get(['id', 'nome', 'email', 'perfil', 'ativo', 'ultimo_acesso_em', 'created_at']);
+            ->get();
 
         return response()->json($usuarios);
     }
@@ -73,25 +78,56 @@ class UsuarioController extends Controller
     /**
      * Desativa o acesso: o usuário sai de todas as sessões na hora e não entra mais.
      * O histórico do que ele fez continua com o nome dele.
+     *
+     * Como só o responsável ou um admin altera a OS, as OS em andamento do usuário (as pendentes, inclusive
+     * a cancelada que ainda espera a devolução) passam para quem o admin escolher em `transferir_para_id`,
+     * na mesma transação. Sem destino, a desativação é recusada (422) e nada muda. Cada OS transferida
+     * ganha um registro "alterou" com o responsável antes e depois e o motivo.
      */
-    public function desativar(Request $request, Usuario $usuario): JsonResponse
+    public function desativar(DesativacaoUsuarioRequest $request, Usuario $usuario): JsonResponse
     {
-        $this->garantirMesmaAssistencia($request, $usuario);
         abort_unless($usuario->ativo, 422, 'Este usuário já está desativado.');
 
-        DB::transaction(function () use ($usuario) {
+        $destinoId = $request->validated('transferir_para_id');
+
+        $transferidas = DB::transaction(function () use ($usuario, $destinoId) {
             if ($usuario->admin()) {
                 $this->garantirOutroAdmin($usuario, 'Não é possível desativar o último admin ativo da assistência.');
+            }
+
+            // Trava as OS para ninguém trocar o responsável delas no meio da transferência.
+            $ordens = $usuario->ordensResponsavel()->pendentes()->orderBy('id')->lockForUpdate()->get();
+
+            if ($ordens->isNotEmpty() && ! $destinoId) {
+                $quantas = $ordens->count() === 1 ? '1 OS em andamento' : "{$ordens->count()} OS em andamento";
+                throw ValidationException::withMessages([
+                    'transferir_para_id' => "{$usuario->nome} é responsável por {$quantas}. Escolha para quem transferir antes de desativar.",
+                ]);
+            }
+
+            $destino = $ordens->isNotEmpty() ? Usuario::findOrFail($destinoId) : null;
+            foreach ($ordens as $os) {
+                $os->motivoAlteracao = "transferida para {$destino->nome} ao desativar {$usuario->nome}";
+                $os->update(['responsavel_id' => $destino->id]);
             }
 
             $usuario->forceFill(['ativo' => false])->save();
             $usuario->tokens()->delete();
 
+            $depois = ['ativo' => false];
+            $descricao = "Desativou o usuário {$usuario->nome}";
+            if ($destino) {
+                $depois += ['os_transferidas' => $ordens->pluck('numero')->all(), 'transferidas_para_id' => $destino->id];
+                $descricao .= ' e transferiu '.($ordens->count() === 1 ? '1 OS' : "{$ordens->count()} OS")." para {$destino->nome}";
+            }
+
             Auditoria::registrar($usuario->assistencia_id, 'desativou_usuario', 'usuario', $usuario->id,
-                "Desativou o usuário {$usuario->nome}", ['ativo' => true], ['ativo' => false]);
+                $descricao, ['ativo' => true], $depois);
+
+            return $ordens->count();
         });
 
-        return response()->json($usuario->refresh());
+        return response()->json($usuario->refresh()->toArray() + ['os_transferidas' => $transferidas]);
     }
 
     public function reativar(Request $request, Usuario $usuario): JsonResponse
