@@ -87,6 +87,7 @@ export default function Clientes({ clienteId, novo }) {
   return (
     <Layout
       ativo="clientes"
+      titulo={selecionado ? `${selecionado.nome} · Clientes` : 'Clientes'}
       trilha={
         <>
           Clientes{selecionado && <> / <span style={{ color: 'var(--color-text)' }}>{selecionado.nome}</span></>}
@@ -102,7 +103,7 @@ export default function Clientes({ clienteId, novo }) {
       <div style={{ minHeight: '100%', display: 'grid', gridTemplateColumns: '400px minmax(0,1fr)' }}>
         <div style={{ padding: '24px 20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 14, borderRight: '1px solid var(--color-neutral-900)' }}>
           <div>
-            <div className="pagina-titulo">Clientes</div>
+            <h1 className="pagina-titulo">Clientes</h1>
             <div className="pagina-subtitulo">{clientes ? `${clientes.length} cadastrados` : 'Carregando…'}</div>
           </div>
           <div className="input-icone">

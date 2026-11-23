@@ -39,10 +39,10 @@ export default function Sidebar({ ativo, aberta = false }) {
   const pendentes = ordens.filter(estaPendente).length
 
   return (
-    <aside id="menu-principal" className={`sidebar${aberta ? ' aberta' : ''}`} aria-label="Menu principal">
+    <nav id="menu-principal" className={`sidebar${aberta ? ' aberta' : ''}`} aria-label="Menu principal">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px 18px' }}>
         <span className="marca">
-          <i className="ph ph-wrench" />
+          <i className="ph ph-wrench" aria-hidden="true" />
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, minWidth: 0 }}>
           <span className="truncar" style={{ fontWeight: 600, fontSize: 14.5 }}>
@@ -58,6 +58,7 @@ export default function Sidebar({ ativo, aberta = false }) {
           <a
             key={item.id}
             href={item.href}
+            aria-current={marcado ? 'page' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -71,7 +72,7 @@ export default function Sidebar({ ativo, aberta = false }) {
               boxShadow: marcado ? 'inset 2px 0 0 var(--color-accent)' : 'none',
             }}
           >
-            <i className={`ph ${item.icone}`} style={{ fontSize: 18 }} />
+            <i className={`ph ${item.icone}`} style={{ fontSize: 18 }} aria-hidden="true" />
             <span style={{ flex: 1 }}>{item.rotulo}</span>
             {item.id === 'painel' && pendentes > 0 && (
               <span
@@ -85,6 +86,7 @@ export default function Sidebar({ ativo, aberta = false }) {
                 }}
               >
                 {pendentes}
+                <span className="sr-only"> pendentes</span>
               </span>
             )}
           </a>
@@ -111,18 +113,18 @@ export default function Sidebar({ ativo, aberta = false }) {
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-500)' }}>{usuario?.perfil_rotulo ?? ''}</span>
         </div>
         <a className="btn btn-icon" style={{ width: 30, height: 30, color: 'var(--color-neutral-500)' }} href="#/entrar" onClick={sair} title="Sair" aria-label="Sair">
-          <i className="ph ph-sign-out" />
+          <i className="ph ph-sign-out" aria-hidden="true" />
         </a>
       </div>
       {/* Termos e política sempre disponíveis no sistema (Marco Civil, art. 7º, XI). */}
       <div style={{ display: 'flex', gap: 12, padding: '0 8px 4px', fontSize: 11.5 }}>
         <a href="#/termos" target="_blank" rel="noreferrer" style={{ color: 'var(--color-neutral-500)' }}>
-          Termos de uso
+          Termos de uso<span className="sr-only"> (abre em nova guia)</span>
         </a>
         <a href="#/privacidade" target="_blank" rel="noreferrer" style={{ color: 'var(--color-neutral-500)' }}>
-          Privacidade
+          Privacidade<span className="sr-only"> (abre em nova guia)</span>
         </a>
       </div>
-    </aside>
+    </nav>
   )
 }

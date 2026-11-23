@@ -2,7 +2,7 @@
 // O botão de menu só aparece no celular, onde a barra lateral fica escondida.
 export default function Topbar({ trilha, menuAberto = false, onMenu, children }) {
   return (
-    <div className="topbar">
+    <header className="topbar">
       {onMenu && (
         <button
           type="button"
@@ -19,6 +19,6 @@ export default function Topbar({ trilha, menuAberto = false, onMenu, children })
         {trilha}
       </span>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{children}</div>
-    </div>
+    </header>
   )
 }

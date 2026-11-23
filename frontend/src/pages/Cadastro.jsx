@@ -7,9 +7,11 @@ import { senhaValida } from '../data/regras'
 import { VERSAO_PRIVACIDADE, VERSAO_TERMOS } from '../data/termos'
 import { guardarToken } from '../services/api'
 import { cadastrar } from '../services/auth'
+import useTituloPagina from '../components/useTituloPagina'
 
 // Cadastro da assistência e do acesso do técnico (3b).
 export default function Cadastro() {
+  useTituloPagina('Criar conta')
   const [form, setForm] = useState({ nome_assistencia: '', nome: '', telefone: '', email: '', password: '', password_confirmation: '' })
   const [aceite, setAceite] = useState(false)
   const [erros, setErros] = useState({})
@@ -56,7 +58,7 @@ export default function Cadastro() {
     >
       <form onSubmit={enviar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em' }}>Criar conta</div>
+          <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em' }}>Criar conta</h1>
           <div className="pagina-subtitulo" style={{ marginTop: 4 }}>
             Dados da assistência e do seu acesso
           </div>

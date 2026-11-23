@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { regrasSenha } from '../data/regras'
+import ErroCampo from './ErroCampo'
 
 // Campo de senha com botão de mostrar/ocultar e, opcionalmente, a força da senha.
 export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, erro, icone, autoFocus, autoComplete }) {
@@ -29,7 +30,7 @@ export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, 
             onClick={() => setVisivel(!visivel)}
             aria-label={visivel ? 'Ocultar senha' : 'Mostrar senha'}
           >
-            <i className={`ph ${visivel ? 'ph-eye-slash' : 'ph-eye'}`} />
+            <i className={`ph ${visivel ? 'ph-eye-slash' : 'ph-eye'}`} aria-hidden="true" />
           </button>
         )}
       </div>
@@ -45,20 +46,16 @@ export default function CampoSenha({ id, rotulo, valor, onChange, mostrarForca, 
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 6, fontSize: 12, color: 'var(--color-neutral-400)' }}>
             {regras.map((r) => (
-              <span key={r.rotulo} style={{ display: 'flex', gap: 4, alignItems: 'center', color: r.ok ? undefined : 'var(--color-neutral-600)' }}>
-                <i className={`ph ${r.ok ? 'ph-check' : 'ph-minus'}`} style={{ color: r.ok ? 'var(--color-success)' : undefined }} />
+              <span key={r.rotulo} style={{ display: 'flex', gap: 4, alignItems: 'center', color: r.ok ? undefined : 'var(--color-neutral-500)' }}>
+                <i className={`ph ${r.ok ? 'ph-check' : 'ph-minus'}`} style={{ color: r.ok ? 'var(--color-success)' : undefined }} aria-hidden="true" />
+                <span className="sr-only">{r.ok ? 'Cumprida: ' : 'Falta: '}</span>
                 {r.rotulo}
               </span>
             ))}
           </div>
         </>
       )}
-      {erro && (
-        <div className="erro-campo">
-          <i className="ph ph-warning-circle" />
-          {erro}
-        </div>
-      )}
+      <ErroCampo erros={erro ? [erro] : null} para={id} />
     </div>
   )
 }

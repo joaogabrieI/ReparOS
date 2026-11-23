@@ -5,9 +5,11 @@ import ErroCampo from '../components/ErroCampo'
 import { navegar } from '../components/roteador'
 import { senhaValida } from '../data/regras'
 import { redefinirSenha } from '../services/auth'
+import useTituloPagina from '../components/useTituloPagina'
 
 // Definir nova senha, aberta pelo link do e-mail (3d).
 export default function NovaSenha({ token, email }) {
+  useTituloPagina('Criar nova senha')
   const [senha, setSenha] = useState('')
   const [confirmacao, setConfirmacao] = useState('')
   const [sairOutros, setSairOutros] = useState(true)
@@ -42,7 +44,7 @@ export default function NovaSenha({ token, email }) {
           <span className="icone-quadro">
             <i className="ph ph-link-break" />
           </span>
-          <div style={{ fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>Link incompleto</div>
+          <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>Link incompleto</h1>
           <div style={{ fontSize: 14, color: 'var(--color-neutral-400)' }}>Abra o link do e-mail de recuperação ou peça um novo.</div>
           <a href="#/esqueci-senha" className="btn btn-primary btn-block" style={{ height: 44 }}>
             Pedir novo link
@@ -63,7 +65,7 @@ export default function NovaSenha({ token, email }) {
             <span className="icone-quadro" style={{ background: 'oklch(0.82 0.1 155 / 0.12)', color: 'oklch(0.84 0.1 155)' }}>
               <i className="ph ph-check-circle" />
             </span>
-            <div style={{ fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>Senha alterada</div>
+            <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>Senha alterada</h1>
             <div style={{ fontSize: 14, color: 'var(--color-neutral-400)' }}>Entre com a nova senha para continuar.</div>
             <button className="btn btn-primary btn-block" style={{ height: 44 }} onClick={() => navegar('/entrar')}>
               Ir para o login
@@ -76,7 +78,7 @@ export default function NovaSenha({ token, email }) {
               <i className="ph ph-lock-key" />
             </span>
             <div>
-              <div style={{ fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>Criar nova senha</div>
+              <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>Criar nova senha</h1>
               <div style={{ fontSize: 14, color: 'var(--color-neutral-400)', marginTop: 6 }}>
                 Conta: {email}
               </div>

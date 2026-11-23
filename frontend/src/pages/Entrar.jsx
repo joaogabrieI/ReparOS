@@ -3,11 +3,13 @@ import AcessoLayout, { Destaque } from '../components/AcessoLayout'
 import CampoSenha from '../components/CampoSenha'
 import { navegar } from '../components/roteador'
 import { api, guardarToken } from '../services/api'
+import useTituloPagina from '../components/useTituloPagina'
 
 const VANTAGENS = ['Fluxo de status com histórico automático', 'Orçamento e avisos pelo WhatsApp', 'OS paradas em destaque']
 
 // Login do técnico (3a).
 export default function Entrar({ expirou }) {
+  useTituloPagina('Entrar')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [manter, setManter] = useState(true)
@@ -47,7 +49,7 @@ export default function Entrar({ expirou }) {
     >
       <form onSubmit={enviar} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <div style={{ fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em' }}>Entrar</div>
+          <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em' }}>Entrar</h1>
           <div className="pagina-subtitulo" style={{ marginTop: 4 }}>
             Acesse a conta da sua assistência
           </div>

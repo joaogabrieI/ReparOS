@@ -6,6 +6,7 @@ import { navegar } from '../components/roteador'
 import { data, dataHora, diaMesHora, moeda, nomeEquipamento, textoGarantia } from '../data/formato'
 import { corStatus, iconeEquipamento, infoDevolucao } from '../data/status'
 import { acompanharOrdem } from '../services/ordens'
+import useTituloPagina from '../components/useTituloPagina'
 
 // Etapas em que o cliente já precisa saber se retira o equipamento ou se recebe em casa.
 const MOSTRA_DEVOLUCAO = ['em_reparo', 'pronto_para_retirada', 'orcamento_recusado']
@@ -16,6 +17,7 @@ const SITUACAO = { pendente: 'aguardando sua resposta à assistência', aprovado
 // A API não devolve telefone, endereço nem anotações internas do técnico.
 // A tela é só para consulta: o cliente responde ao orçamento direto com a assistência.
 export default function Acompanhar({ numeroInicial = '' }) {
+  useTituloPagina('Acompanhar reparo')
   const [numero, setNumero] = useState(numeroInicial)
   const [os, setOs] = useState(null)
   const [erro, setErro] = useState('')

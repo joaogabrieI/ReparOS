@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import Dialogo from '../components/Dialogo'
 import CampoSenha from '../components/CampoSenha'
 import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
@@ -40,81 +41,79 @@ function DialogoUsuario({ usuario, onFechar, onSalvo }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <form className="dialog" onSubmit={salvar} aria-labelledby="u-titulo">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span id="u-titulo" className="dialog-title">
-            {usuario ? 'Editar usuário' : 'Novo usuário'}
-          </span>
-          <button type="button" className="btn btn-ghost" style={{ padding: '0 8px' }} onClick={onFechar} aria-label="Fechar">
-            <i className="ph ph-x" />
-          </button>
+    <Dialogo as="form" tituloId="u-titulo" onFechar={onFechar} onSubmit={salvar}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span id="u-titulo" className="dialog-title">
+          {usuario ? 'Editar usuário' : 'Novo usuário'}
+        </span>
+        <button type="button" className="btn btn-ghost" style={{ padding: '0 8px' }} onClick={onFechar} aria-label="Fechar">
+          <i className="ph ph-x" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="field">
+        <label htmlFor="u-nome">Nome *</label>
+        <input id="u-nome" className={`input${erros.nome ? ' input-erro' : ''}`} autoFocus value={form.nome} onChange={mudar('nome')} />
+        <ErroCampo erros={erros.nome} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="u-email">E-mail de acesso *</label>
+        <input id="u-email" type="email" className={`input${erros.email ? ' input-erro' : ''}`} value={form.email} onChange={mudar('email')} />
+        <ErroCampo erros={erros.email} />
+      </div>
+
+      <fieldset className="field" style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend style={{ fontSize: 13, marginBottom: 6 }}>Perfil *</legend>
+        {PERFIS.map((p) => (
+          <label key={p.valor} className="check" style={{ alignItems: 'flex-start', marginBottom: 6 }}>
+            <input type="radio" name="perfil" value={p.valor} checked={form.perfil === p.valor} onChange={mudar('perfil')} />
+            <span className="caixa" style={{ borderRadius: '50%' }}>
+              <i className="ph ph-check" />
+            </span>
+            <span>
+              {p.rotulo}
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--color-neutral-500)' }}>{p.ajuda}</span>
+            </span>
+          </label>
+        ))}
+        <ErroCampo erros={erros.perfil} />
+      </fieldset>
+
+      <CampoSenha
+        id="u-senha"
+        rotulo={usuario ? 'Nova senha (deixe em branco para manter)' : 'Senha inicial *'}
+        valor={senha}
+        onChange={setSenha}
+        mostrarForca
+        erro={erros.password?.[0]}
+        autoComplete="new-password"
+      />
+      {(senha || !usuario) && (
+        <CampoSenha id="u-confirmacao" rotulo="Confirme a senha *" valor={confirmacao} onChange={setConfirmacao} autoComplete="new-password" />
+      )}
+      {usuario && senha && (
+        <div className="nota">
+          <i className="ph ph-info" style={{ marginTop: 2 }} />
+          Ao trocar a senha, o usuário sai de todas as sessões abertas.
         </div>
+      )}
 
-        <div className="field">
-          <label htmlFor="u-nome">Nome *</label>
-          <input id="u-nome" className={`input${erros.nome ? ' input-erro' : ''}`} autoFocus value={form.nome} onChange={mudar('nome')} />
-          <ErroCampo erros={erros.nome} />
+      {erroGeral && (
+        <div role="alert">
+          <ErroCampo erros={[erroGeral]} />
         </div>
+      )}
 
-        <div className="field">
-          <label htmlFor="u-email">E-mail de acesso *</label>
-          <input id="u-email" type="email" className={`input${erros.email ? ' input-erro' : ''}`} value={form.email} onChange={mudar('email')} />
-          <ErroCampo erros={erros.email} />
-        </div>
-
-        <fieldset className="field" style={{ border: 'none', padding: 0, margin: 0 }}>
-          <legend style={{ fontSize: 13, marginBottom: 6 }}>Perfil *</legend>
-          {PERFIS.map((p) => (
-            <label key={p.valor} className="check" style={{ alignItems: 'flex-start', marginBottom: 6 }}>
-              <input type="radio" name="perfil" value={p.valor} checked={form.perfil === p.valor} onChange={mudar('perfil')} />
-              <span className="caixa" style={{ borderRadius: '50%' }}>
-                <i className="ph ph-check" />
-              </span>
-              <span>
-                {p.rotulo}
-                <span style={{ display: 'block', fontSize: 12, color: 'var(--color-neutral-500)' }}>{p.ajuda}</span>
-              </span>
-            </label>
-          ))}
-          <ErroCampo erros={erros.perfil} />
-        </fieldset>
-
-        <CampoSenha
-          id="u-senha"
-          rotulo={usuario ? 'Nova senha (deixe em branco para manter)' : 'Senha inicial *'}
-          valor={senha}
-          onChange={setSenha}
-          mostrarForca
-          erro={erros.password?.[0]}
-          autoComplete="new-password"
-        />
-        {(senha || !usuario) && (
-          <CampoSenha id="u-confirmacao" rotulo="Confirme a senha *" valor={confirmacao} onChange={setConfirmacao} autoComplete="new-password" />
-        )}
-        {usuario && senha && (
-          <div className="nota">
-            <i className="ph ph-info" style={{ marginTop: 2 }} />
-            Ao trocar a senha, o usuário sai de todas as sessões abertas.
-          </div>
-        )}
-
-        {erroGeral && (
-          <div role="alert">
-            <ErroCampo erros={[erroGeral]} />
-          </div>
-        )}
-
-        <div className="dialog-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" className="btn btn-ghost" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={enviando}>
-            {enviando ? 'Salvando…' : usuario ? 'Salvar' : 'Criar usuário'}
-          </button>
-        </div>
-      </form>
-    </div>
+      <div className="dialog-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button type="button" className="btn btn-ghost" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={enviando}>
+          {enviando ? 'Salvando…' : usuario ? 'Salvar' : 'Criar usuário'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 

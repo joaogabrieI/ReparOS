@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Dialogo from '../components/Dialogo'
 import ErroCampo from '../components/ErroCampo'
 import Layout from '../components/Layout'
 import { useDados } from '../data/contexto'
@@ -785,8 +786,8 @@ function CabecalhoDialogo({ id, titulo, onFechar }) {
       <span className="dialog-title" id={id}>
         {titulo}
       </span>
-      <button className="btn btn-icon" style={{ width: 30, height: 30, color: 'var(--color-neutral-400)' }} onClick={onFechar} aria-label="Fechar">
-        <i className="ph ph-x" />
+      <button type="button" className="btn btn-icon" style={{ width: 30, height: 30, color: 'var(--color-neutral-400)' }} onClick={onFechar} aria-label="Fechar">
+        <i className="ph ph-x" aria-hidden="true" />
       </button>
     </div>
   )
@@ -807,75 +808,73 @@ function DialogoResposta({ ordem, situacaoInicial, onFechar, atualizar }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="dr-titulo">
-        <CabecalhoDialogo id="dr-titulo" titulo="Registrar resposta do orçamento" onFechar={onFechar} />
-        <div className="field">
-          <span id="dr-resposta" style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>
-            Resposta do cliente
-          </span>
-          <div className="seg" style={{ display: 'flex' }} role="radiogroup" aria-labelledby="dr-resposta">
-            {[
-              ['aprovado', 'ph-check', 'Aprovado'],
-              ['recusado', 'ph-x', 'Recusado'],
-            ].map(([valor, icone, rotulo]) => (
-              <label key={valor} className="seg-opt" style={{ flex: 1, justifyContent: 'center' }}>
-                <input type="radio" name="resposta" checked={situacao === valor} onChange={() => setSituacao(valor)} />
-                <i className={`ph ${icone}`} />
-                {rotulo}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div className="field">
-            <label htmlFor="dr-canal">Respondeu por *</label>
-            <select id="dr-canal" className={`input${acao.erros.canal ? ' input-erro' : ''}`} value={canal} onChange={(e) => setCanal(e.target.value)}>
-              {CANAIS.map(([valor, rotulo]) => (
-                <option key={valor} value={valor}>
-                  {rotulo}
-                </option>
-              ))}
-            </select>
-            <ErroCampo erros={acao.erros.canal} />
-          </div>
-          <div className="field">
-            <span style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>Valor {aprovado ? 'aprovado' : 'recusado'}</span>
-            <div className="input" style={{ display: 'flex', alignItems: 'center', color: 'var(--color-neutral-400)' }}>
-              {moeda(totalOrcamento(ordem.orcamento))}
-            </div>
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor="dr-obs">Observação</label>
-          <input
-            id="dr-obs"
-            className={`input${acao.erros.observacao ? ' input-erro' : ''}`}
-            placeholder="Ex.: aprovou por mensagem às 10:20"
-            value={observacao}
-            onChange={(e) => setObservacao(e.target.value)}
-          />
-          <ErroCampo erros={acao.erros.observacao} />
-        </div>
-        <div className="nota" style={{ alignItems: 'center' }}>
-          <i className="ph ph-arrow-right" style={{ color: 'var(--color-accent-300)' }} />
-          <span>
-            Status passa de {infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{aprovado ? 'Em reparo' : 'Orçamento recusado'}</b>. A data da
-            resposta é registrada agora.
-          </span>
-        </div>
-        <ErroAcao acao={acao} campos={['canal', 'observacao']} />
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button className={`btn ${aprovado ? 'btn-primary' : 'btn-secondary btn-perigo'}`} disabled={acao.enviando} onClick={confirmar}>
-            <i className={`ph ${aprovado ? 'ph-check' : 'ph-x'}`} />
-            {aprovado ? 'Confirmar aprovação' : 'Confirmar recusa'}
-          </button>
+    <Dialogo tituloId="dr-titulo" onFechar={onFechar} style={{ width: 460 }}>
+      <CabecalhoDialogo id="dr-titulo" titulo="Registrar resposta do orçamento" onFechar={onFechar} />
+      <div className="field">
+        <span id="dr-resposta" style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>
+          Resposta do cliente
+        </span>
+        <div className="seg" style={{ display: 'flex' }} role="radiogroup" aria-labelledby="dr-resposta">
+          {[
+            ['aprovado', 'ph-check', 'Aprovado'],
+            ['recusado', 'ph-x', 'Recusado'],
+          ].map(([valor, icone, rotulo]) => (
+            <label key={valor} className="seg-opt" style={{ flex: 1, justifyContent: 'center' }}>
+              <input type="radio" name="resposta" checked={situacao === valor} onChange={() => setSituacao(valor)} />
+              <i className={`ph ${icone}`} />
+              {rotulo}
+            </label>
+          ))}
         </div>
       </div>
-    </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="field">
+          <label htmlFor="dr-canal">Respondeu por *</label>
+          <select id="dr-canal" className={`input${acao.erros.canal ? ' input-erro' : ''}`} value={canal} onChange={(e) => setCanal(e.target.value)}>
+            {CANAIS.map(([valor, rotulo]) => (
+              <option key={valor} value={valor}>
+                {rotulo}
+              </option>
+            ))}
+          </select>
+          <ErroCampo erros={acao.erros.canal} />
+        </div>
+        <div className="field">
+          <span style={{ fontSize: 12.5, color: 'var(--color-neutral-400)' }}>Valor {aprovado ? 'aprovado' : 'recusado'}</span>
+          <div className="input" style={{ display: 'flex', alignItems: 'center', color: 'var(--color-neutral-400)' }}>
+            {moeda(totalOrcamento(ordem.orcamento))}
+          </div>
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="dr-obs">Observação</label>
+        <input
+          id="dr-obs"
+          className={`input${acao.erros.observacao ? ' input-erro' : ''}`}
+          placeholder="Ex.: aprovou por mensagem às 10:20"
+          value={observacao}
+          onChange={(e) => setObservacao(e.target.value)}
+        />
+        <ErroCampo erros={acao.erros.observacao} />
+      </div>
+      <div className="nota" style={{ alignItems: 'center' }}>
+        <i className="ph ph-arrow-right" style={{ color: 'var(--color-accent-300)' }} />
+        <span>
+          Status passa de {infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{aprovado ? 'Em reparo' : 'Orçamento recusado'}</b>. A data da
+          resposta é registrada agora.
+        </span>
+      </div>
+      <ErroAcao acao={acao} campos={['canal', 'observacao']} />
+      <div className="dialog-actions">
+        <button className="btn btn-secondary" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button className={`btn ${aprovado ? 'btn-primary' : 'btn-secondary btn-perigo'}`} disabled={acao.enviando} onClick={confirmar}>
+          <i className={`ph ${aprovado ? 'ph-check' : 'ph-x'}`} />
+          {aprovado ? 'Confirmar aprovação' : 'Confirmar recusa'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 
@@ -903,51 +902,49 @@ function DialogoEntrega({ ordem, onFechar, atualizar }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="de-titulo">
-        <CabecalhoDialogo
-          id="de-titulo"
-          titulo={cancelada ? 'Registrar devolução da OS cancelada' : entrega ? 'Registrar entrega no endereço' : 'Registrar retirada pelo cliente'}
-          onFechar={onFechar}
-        />
-        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
-          {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
-        </div>
-        <BlocoDevolucao ordem={ordem} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div className="field">
-            <label htmlFor="de-dia">Data da entrega *</label>
-            <input id="de-dia" type="date" className={`input${acao.erros.data_entrega ? ' input-erro' : ''}`} value={dia} onChange={(e) => setDia(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="de-hora">Horário *</label>
-            <input id="de-hora" type="time" className={`input${acao.erros.data_entrega ? ' input-erro' : ''}`} value={horario} onChange={(e) => setHorario(e.target.value)} />
-          </div>
-        </div>
-        <ErroCampo erros={acao.erros.data_entrega} />
+    <Dialogo tituloId="de-titulo" onFechar={onFechar} style={{ width: 460 }}>
+      <CabecalhoDialogo
+        id="de-titulo"
+        titulo={cancelada ? 'Registrar devolução da OS cancelada' : entrega ? 'Registrar entrega no endereço' : 'Registrar retirada pelo cliente'}
+        onFechar={onFechar}
+      />
+      <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+        {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
+      </div>
+      <BlocoDevolucao ordem={ordem} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div className="field">
-          <label htmlFor="de-recebido">Recebido por</label>
-          <input id="de-recebido" className="input" value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} />
-          <ErroCampo erros={acao.erros.observacao} />
+          <label htmlFor="de-dia">Data da entrega *</label>
+          <input id="de-dia" type="date" className={`input${acao.erros.data_entrega ? ' input-erro' : ''}`} value={dia} onChange={(e) => setDia(e.target.value)} />
         </div>
-        <div className="nota">
-          <i className="ph ph-lock-simple" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
-          <span>
-            O status muda para <b style={{ fontWeight: 500 }}>Entregue</b> e a OS é encerrada. Depois disso ela só pode ser consultada.
-          </span>
-        </div>
-        <ErroAcao acao={acao} campos={['data_entrega', 'observacao']} />
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" disabled={acao.enviando} onClick={confirmar}>
-            <i className="ph ph-handshake" />
-            Confirmar entrega
-          </button>
+        <div className="field">
+          <label htmlFor="de-hora">Horário *</label>
+          <input id="de-hora" type="time" className={`input${acao.erros.data_entrega ? ' input-erro' : ''}`} value={horario} onChange={(e) => setHorario(e.target.value)} />
         </div>
       </div>
-    </div>
+      <ErroCampo erros={acao.erros.data_entrega} />
+      <div className="field">
+        <label htmlFor="de-recebido">Recebido por</label>
+        <input id="de-recebido" className="input" value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} />
+        <ErroCampo erros={acao.erros.observacao} />
+      </div>
+      <div className="nota">
+        <i className="ph ph-lock-simple" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
+        <span>
+          O status muda para <b style={{ fontWeight: 500 }}>Entregue</b> e a OS é encerrada. Depois disso ela só pode ser consultada.
+        </span>
+      </div>
+      <ErroAcao acao={acao} campos={['data_entrega', 'observacao']} />
+      <div className="dialog-actions">
+        <button className="btn btn-secondary" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button className="btn btn-primary" disabled={acao.enviando} onClick={confirmar}>
+          <i className="ph ph-handshake" />
+          Confirmar entrega
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 
@@ -1015,103 +1012,101 @@ function DialogoEditar({ ordem, onFechar, onSalvo }) {
   const CAMPOS = ['equipamento_id', 'problema_relatado', 'retirada_agendada', 'responsavel_id', 'diagnostico', 'servico_executado', 'pecas_trocadas', ...CAMPOS_DEVOLUCAO, 'motivo']
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 560, maxHeight: '90vh', overflowY: 'auto' }} role="dialog" aria-modal="true" aria-labelledby="ed-titulo">
-        <CabecalhoDialogo id="ed-titulo" titulo="Editar OS" onFechar={onFechar} />
-        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
-          {ordem.numero} · {ordem.cliente.nome} · status continua em {ordem.status_rotulo ?? infoStatus(status).rotulo}
-        </div>
+    <Dialogo tituloId="ed-titulo" onFechar={onFechar} style={{ width: 560, maxHeight: '90vh', overflowY: 'auto' }}>
+      <CabecalhoDialogo id="ed-titulo" titulo="Editar OS" onFechar={onFechar} />
+      <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+        {ordem.numero} · {ordem.cliente.nome} · status continua em {ordem.status_rotulo ?? infoStatus(status).rotulo}
+      </div>
 
+      {podeEquipamento && (
+        <div className="field">
+          <label htmlFor="ed-equipamento">Equipamento *</label>
+          <select id="ed-equipamento" className={classe('equipamento_id')} value={campos.equipamento_id} onChange={mudar('equipamento_id')}>
+            {equipamentos.map((e) => (
+              <option key={e.id} value={String(e.id)}>
+                {nomeEquipamento(e)}
+                {e.numero_serie ? ` · nº ${e.numero_serie}` : ''}
+              </option>
+            ))}
+          </select>
+          <ErroCampo erros={acao.erros.equipamento_id} />
+        </div>
+      )}
+
+      <div className="field">
+        <label htmlFor="ed-problema">Problema relatado *</label>
+        <textarea id="ed-problema" className={classe('problema_relatado')} value={campos.problema_relatado} onChange={mudar('problema_relatado')} />
+        <ErroCampo erros={acao.erros.problema_relatado} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: podeEquipamento ? '1fr 1fr' : '1fr', gap: 10 }}>
         {podeEquipamento && (
           <div className="field">
-            <label htmlFor="ed-equipamento">Equipamento *</label>
-            <select id="ed-equipamento" className={classe('equipamento_id')} value={campos.equipamento_id} onChange={mudar('equipamento_id')}>
-              {equipamentos.map((e) => (
-                <option key={e.id} value={String(e.id)}>
-                  {nomeEquipamento(e)}
-                  {e.numero_serie ? ` · nº ${e.numero_serie}` : ''}
-                </option>
-              ))}
-            </select>
-            <ErroCampo erros={acao.erros.equipamento_id} />
+            <label htmlFor="ed-retirada">Retirada combinada</label>
+            <input id="ed-retirada" type="datetime-local" min={agoraLocal()} className={classe('retirada_agendada')} value={campos.retirada_agendada} onChange={mudar('retirada_agendada')} />
+            <ErroCampo erros={acao.erros.retirada_agendada} />
           </div>
         )}
-
         <div className="field">
-          <label htmlFor="ed-problema">Problema relatado *</label>
-          <textarea id="ed-problema" className={classe('problema_relatado')} value={campos.problema_relatado} onChange={mudar('problema_relatado')} />
-          <ErroCampo erros={acao.erros.problema_relatado} />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: podeEquipamento ? '1fr 1fr' : '1fr', gap: 10 }}>
-          {podeEquipamento && (
-            <div className="field">
-              <label htmlFor="ed-retirada">Retirada combinada</label>
-              <input id="ed-retirada" type="datetime-local" min={agoraLocal()} className={classe('retirada_agendada')} value={campos.retirada_agendada} onChange={mudar('retirada_agendada')} />
-              <ErroCampo erros={acao.erros.retirada_agendada} />
-            </div>
-          )}
-          <div className="field">
-            <label htmlFor="ed-responsavel">Técnico responsável *</label>
-            <select id="ed-responsavel" className={classe('responsavel_id')} value={campos.responsavel_id} onChange={mudar('responsavel_id')}>
-              {opcoes.map((u) => (
-                <option key={u.id} value={String(u.id)}>
-                  {u.nome}
-                  {u.ativo ? '' : ' (desativado)'}
-                </option>
-              ))}
-            </select>
-            <ErroCampo erros={acao.erros.responsavel_id} />
-          </div>
-        </div>
-
-        {podeDiagnostico && (
-          <div className="field">
-            <label htmlFor="ed-diagnostico">Diagnóstico *</label>
-            <textarea id="ed-diagnostico" className={classe('diagnostico')} value={campos.diagnostico} onChange={mudar('diagnostico')} />
-            <ErroCampo erros={acao.erros.diagnostico} />
-          </div>
-        )}
-
-        {podeReparo && (
-          <>
-            <div className="field">
-              <label htmlFor="ed-servico">Serviço executado{status === 'pronto_para_retirada' ? ' *' : ''}</label>
-              <textarea id="ed-servico" className={classe('servico_executado')} value={campos.servico_executado} onChange={mudar('servico_executado')} />
-              <ErroCampo erros={acao.erros.servico_executado} />
-            </div>
-            <div className="field">
-              <label htmlFor="ed-pecas">Peças trocadas (uma por linha)</label>
-              <textarea id="ed-pecas" className={classe('pecas_trocadas')} value={campos.pecas_trocadas} onChange={mudar('pecas_trocadas')} />
-              <ErroCampo erros={acao.erros.pecas_trocadas} />
-            </div>
-          </>
-        )}
-
-        <CamposDevolucao id="ed-dev" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={ordem.cliente.endereco} />
-
-        <div className="field">
-          <label htmlFor="ed-motivo">Motivo da correção</label>
-          <input id="ed-motivo" className={classe('motivo')} placeholder="Ex.: cliente explicou melhor o defeito" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-          <ErroCampo erros={acao.erros.motivo} />
-        </div>
-
-        <div className="nota">
-          <i className="ph ph-clock-counter-clockwise" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
-          <span>O valor antigo e o novo de cada campo ficam no registro de atividade, com o seu nome e o motivo. O status não muda.</span>
-        </div>
-        <ErroAcao acao={acao} campos={CAMPOS} />
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" disabled={acao.enviando || (alterados.length === 0 && !devolucaoMudou)} onClick={salvar}>
-            <i className="ph ph-check" />
-            {acao.enviando ? 'Salvando…' : 'Salvar alterações'}
-          </button>
+          <label htmlFor="ed-responsavel">Técnico responsável *</label>
+          <select id="ed-responsavel" className={classe('responsavel_id')} value={campos.responsavel_id} onChange={mudar('responsavel_id')}>
+            {opcoes.map((u) => (
+              <option key={u.id} value={String(u.id)}>
+                {u.nome}
+                {u.ativo ? '' : ' (desativado)'}
+              </option>
+            ))}
+          </select>
+          <ErroCampo erros={acao.erros.responsavel_id} />
         </div>
       </div>
-    </div>
+
+      {podeDiagnostico && (
+        <div className="field">
+          <label htmlFor="ed-diagnostico">Diagnóstico *</label>
+          <textarea id="ed-diagnostico" className={classe('diagnostico')} value={campos.diagnostico} onChange={mudar('diagnostico')} />
+          <ErroCampo erros={acao.erros.diagnostico} />
+        </div>
+      )}
+
+      {podeReparo && (
+        <>
+          <div className="field">
+            <label htmlFor="ed-servico">Serviço executado{status === 'pronto_para_retirada' ? ' *' : ''}</label>
+            <textarea id="ed-servico" className={classe('servico_executado')} value={campos.servico_executado} onChange={mudar('servico_executado')} />
+            <ErroCampo erros={acao.erros.servico_executado} />
+          </div>
+          <div className="field">
+            <label htmlFor="ed-pecas">Peças trocadas (uma por linha)</label>
+            <textarea id="ed-pecas" className={classe('pecas_trocadas')} value={campos.pecas_trocadas} onChange={mudar('pecas_trocadas')} />
+            <ErroCampo erros={acao.erros.pecas_trocadas} />
+          </div>
+        </>
+      )}
+
+      <CamposDevolucao id="ed-dev" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={ordem.cliente.endereco} />
+
+      <div className="field">
+        <label htmlFor="ed-motivo">Motivo da correção</label>
+        <input id="ed-motivo" className={classe('motivo')} placeholder="Ex.: cliente explicou melhor o defeito" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+        <ErroCampo erros={acao.erros.motivo} />
+      </div>
+
+      <div className="nota">
+        <i className="ph ph-clock-counter-clockwise" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
+        <span>O valor antigo e o novo de cada campo ficam no registro de atividade, com o seu nome e o motivo. O status não muda.</span>
+      </div>
+      <ErroAcao acao={acao} campos={CAMPOS} />
+      <div className="dialog-actions">
+        <button className="btn btn-secondary" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button className="btn btn-primary" disabled={acao.enviando || (alterados.length === 0 && !devolucaoMudou)} onClick={salvar}>
+          <i className="ph ph-check" />
+          {acao.enviando ? 'Salvando…' : 'Salvar alterações'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 
@@ -1129,29 +1124,27 @@ function DialogoDevolucao({ ordem, onFechar, onSalvo }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 520 }} role="dialog" aria-modal="true" aria-labelledby="dd-titulo">
-        <CabecalhoDialogo id="dd-titulo" titulo="Retirada ou entrega" onFechar={onFechar} />
-        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
-          {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
-        </div>
-        <CamposDevolucao id="dd" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={ordem.cliente.endereco} />
-        <div className="nota">
-          <i className="ph ph-whatsapp-logo" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
-          <span>A mensagem do WhatsApp e a tela de acompanhamento do cliente passam a mostrar a nova escolha. Reenvie o aviso ao cliente.</span>
-        </div>
-        <ErroAcao acao={acao} campos={CAMPOS_DEVOLUCAO} />
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" disabled={acao.enviando} onClick={salvar}>
-            <i className="ph ph-check" />
-            {acao.enviando ? 'Salvando…' : 'Salvar'}
-          </button>
-        </div>
+    <Dialogo tituloId="dd-titulo" onFechar={onFechar} style={{ width: 520 }}>
+      <CabecalhoDialogo id="dd-titulo" titulo="Retirada ou entrega" onFechar={onFechar} />
+      <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+        {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
       </div>
-    </div>
+      <CamposDevolucao id="dd" valor={devolucao} onChange={setDevolucao} erros={acao.erros} enderecoCliente={ordem.cliente.endereco} />
+      <div className="nota">
+        <i className="ph ph-whatsapp-logo" style={{ color: 'var(--color-accent-300)', marginTop: 2 }} />
+        <span>A mensagem do WhatsApp e a tela de acompanhamento do cliente passam a mostrar a nova escolha. Reenvie o aviso ao cliente.</span>
+      </div>
+      <ErroAcao acao={acao} campos={CAMPOS_DEVOLUCAO} />
+      <div className="dialog-actions">
+        <button className="btn btn-secondary" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button className="btn btn-primary" disabled={acao.enviando} onClick={salvar}>
+          <i className="ph ph-check" />
+          {acao.enviando ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 
@@ -1201,48 +1194,46 @@ function DialogoCancelar({ ordem, onFechar, onCancelou }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="co-titulo">
-        <CabecalhoDialogo id="co-titulo" titulo="Cancelar OS" onFechar={onFechar} />
-        <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
-          {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
-        </div>
-        <div className="nota">
-          <i className="ph ph-x-circle" style={{ color: PERIGO, marginTop: 2 }} aria-hidden="true" />
-          <span>
-            Status passa de {ordem.status_rotulo ?? infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>Cancelada</b>.{' '}
-            {naAssistencia
-              ? 'O equipamento está na assistência: depois, registre a devolução ao cliente, sem reparo.'
-              : 'O equipamento ainda está com o cliente: a OS é encerrada.'}
-          </span>
-        </div>
-        <div className="field">
-          <label htmlFor="co-motivo">Motivo *</label>
-          <textarea
-            id="co-motivo"
-            className={`input${acao.erros.motivo ? ' input-erro' : ''}`}
-            placeholder="Ex.: cliente desistiu do reparo"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-          <ErroCampo erros={acao.erros.motivo} />
-        </div>
-        <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>
-          O motivo fica no histórico e no registro de atividade, com o seu nome. O cliente vê que a OS foi cancelada, mas não vê o motivo. Um cancelamento por engano
-          pode ser desfeito em Voltar etapa.
-        </div>
-        <ErroAcao acao={acao} campos={['motivo']} />
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onFechar}>
-            Voltar
-          </button>
-          <button className="btn btn-secondary btn-perigo" disabled={acao.enviando || !motivo.trim()} onClick={confirmar}>
-            <i className="ph ph-x-circle" />
-            {acao.enviando ? 'Cancelando…' : 'Cancelar OS'}
-          </button>
-        </div>
+    <Dialogo tituloId="co-titulo" onFechar={onFechar} style={{ width: 460 }}>
+      <CabecalhoDialogo id="co-titulo" titulo="Cancelar OS" onFechar={onFechar} />
+      <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>
+        {ordem.equipamento.modelo} · {ordem.numero} · {ordem.cliente.nome}
       </div>
-    </div>
+      <div className="nota">
+        <i className="ph ph-x-circle" style={{ color: PERIGO, marginTop: 2 }} aria-hidden="true" />
+        <span>
+          Status passa de {ordem.status_rotulo ?? infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>Cancelada</b>.{' '}
+          {naAssistencia
+            ? 'O equipamento está na assistência: depois, registre a devolução ao cliente, sem reparo.'
+            : 'O equipamento ainda está com o cliente: a OS é encerrada.'}
+        </span>
+      </div>
+      <div className="field">
+        <label htmlFor="co-motivo">Motivo *</label>
+        <textarea
+          id="co-motivo"
+          className={`input${acao.erros.motivo ? ' input-erro' : ''}`}
+          placeholder="Ex.: cliente desistiu do reparo"
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+        <ErroCampo erros={acao.erros.motivo} />
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>
+        O motivo fica no histórico e no registro de atividade, com o seu nome. O cliente vê que a OS foi cancelada, mas não vê o motivo. Um cancelamento por engano
+        pode ser desfeito em Voltar etapa.
+      </div>
+      <ErroAcao acao={acao} campos={['motivo']} />
+      <div className="dialog-actions">
+        <button className="btn btn-secondary" onClick={onFechar}>
+          Voltar
+        </button>
+        <button className="btn btn-secondary btn-perigo" disabled={acao.enviando || !motivo.trim()} onClick={confirmar}>
+          <i className="ph ph-x-circle" />
+          {acao.enviando ? 'Cancelando…' : 'Cancelar OS'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 
@@ -1260,42 +1251,40 @@ function DialogoVoltarEtapa({ ordem, onFechar, onVoltou }) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="dialog" style={{ width: 460 }} role="dialog" aria-modal="true" aria-labelledby="ve-titulo">
-        <CabecalhoDialogo id="ve-titulo" titulo="Voltar para a etapa anterior" onFechar={onFechar} />
-        <div className="nota" style={{ alignItems: 'center' }}>
-          <i className="ph ph-arrow-u-up-left" style={{ color: 'var(--color-accent-300)' }} />
-          <span>
-            Status passa de {ordem.status_rotulo ?? infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{anterior ? rotuloStatus(anterior, ordem.forma_devolucao) : '—'}</b>.{' '}
-            {DESFAZ[ordem.status]}
-          </span>
-        </div>
-        <div className="field">
-          <label htmlFor="ve-motivo">Motivo *</label>
-          <textarea
-            id="ve-motivo"
-            className={`input${acao.erros.motivo ? ' input-erro' : ''}`}
-            placeholder="Ex.: retirada registrada por engano"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-          <ErroCampo erros={acao.erros.motivo} />
-        </div>
-        <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>
-          O histórico ganha um novo registro com o motivo e o seu nome. Os registros anteriores continuam lá.
-        </div>
-        <ErroAcao acao={acao} campos={['motivo']} />
-        <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button className="btn btn-secondary btn-perigo" disabled={acao.enviando || !motivo.trim() || !anterior} onClick={confirmar}>
-            <i className="ph ph-arrow-u-up-left" />
-            {acao.enviando ? 'Voltando…' : 'Voltar etapa'}
-          </button>
-        </div>
+    <Dialogo tituloId="ve-titulo" onFechar={onFechar} style={{ width: 460 }}>
+      <CabecalhoDialogo id="ve-titulo" titulo="Voltar para a etapa anterior" onFechar={onFechar} />
+      <div className="nota" style={{ alignItems: 'center' }}>
+        <i className="ph ph-arrow-u-up-left" style={{ color: 'var(--color-accent-300)' }} />
+        <span>
+          Status passa de {ordem.status_rotulo ?? infoStatus(ordem.status).rotulo} para <b style={{ fontWeight: 500 }}>{anterior ? rotuloStatus(anterior, ordem.forma_devolucao) : '—'}</b>.{' '}
+          {DESFAZ[ordem.status]}
+        </span>
       </div>
-    </div>
+      <div className="field">
+        <label htmlFor="ve-motivo">Motivo *</label>
+        <textarea
+          id="ve-motivo"
+          className={`input${acao.erros.motivo ? ' input-erro' : ''}`}
+          placeholder="Ex.: retirada registrada por engano"
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+        <ErroCampo erros={acao.erros.motivo} />
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', lineHeight: 1.45 }}>
+        O histórico ganha um novo registro com o motivo e o seu nome. Os registros anteriores continuam lá.
+      </div>
+      <ErroAcao acao={acao} campos={['motivo']} />
+      <div className="dialog-actions">
+        <button className="btn btn-secondary" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button className="btn btn-secondary btn-perigo" disabled={acao.enviando || !motivo.trim() || !anterior} onClick={confirmar}>
+          <i className="ph ph-arrow-u-up-left" />
+          {acao.enviando ? 'Voltando…' : 'Voltar etapa'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }
 
@@ -1707,6 +1696,7 @@ export default function DetalheOs({ id }) {
   return (
     <Layout
       ativo={encerrada ? 'os' : 'painel'}
+      titulo={`OS ${ordem.numero}`}
       trilha={
         <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btn btn-icon" style={{ width: 28, height: 28, color: 'var(--color-neutral-400)' }} onClick={() => window.history.back()} aria-label="Voltar">
@@ -1746,16 +1736,16 @@ export default function DetalheOs({ id }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em' }}>
+              <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
                 {nomeEquipamento(equipamento)}
-              </span>
+              </h1>
               <PillGrande status={status} rotulo={ordem.status_rotulo} />
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--color-neutral-400)' }}>{subtitulo}</div>
           </div>
           <button className="btn btn-secondary" disabled={acaoWhatsApp.enviando} onClick={() => acaoWhatsApp.rodar(() => abrirWhatsAppDaApi(id))}>
-            <i className="ph ph-whatsapp-logo" />
-            Enviar WhatsApp
+            <i className="ph ph-whatsapp-logo" aria-hidden="true" />
+            Enviar WhatsApp<span className="sr-only"> (abre em nova guia)</span>
           </button>
           {podeAlterar && !encerrada && (
             <button className="btn btn-ghost" onClick={() => setDialogo({ tipo: 'editar' })}>

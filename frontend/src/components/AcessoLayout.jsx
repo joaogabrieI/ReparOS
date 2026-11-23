@@ -8,9 +8,9 @@ export default function AcessoLayout({ titulo, children, largura = 380 }) {
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>{titulo}</div>
         <div style={{ marginTop: 56, fontSize: 12, color: 'var(--color-neutral-600)' }}>© 2026 ReparOS</div>
       </div>
-      <div className="acesso-form">
+      <main className="acesso-form">
         <div style={{ width: largura, display: 'flex', flexDirection: 'column', gap: 14 }}>{children}</div>
-      </div>
+      </main>
     </div>
   )
 }
@@ -19,7 +19,7 @@ export function Marca() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <span className="marca" style={{ width: 34, height: 34, fontSize: 18 }}>
-        <i className="ph ph-wrench" />
+        <i className="ph ph-wrench" aria-hidden="true" />
       </span>
       <span style={{ fontWeight: 600, fontSize: 16 }}>ReparOS</span>
     </div>
@@ -38,7 +38,7 @@ export function AcessoCentral({ children }) {
       <div className="acesso-central-marca">
         <Marca />
       </div>
-      {children}
+      <main style={{ display: 'contents' }}>{children}</main>
     </div>
   )
 }

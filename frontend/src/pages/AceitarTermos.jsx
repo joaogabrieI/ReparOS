@@ -6,10 +6,12 @@ import { ACEITE_ATUAL } from '../data/termos'
 import { apagarToken, api } from '../services/api'
 import { aceitarTermos } from '../services/auth'
 import { TextoDocumento } from './Documento'
+import useTituloPagina from '../components/useTituloPagina'
 
 // Aparece antes do sistema quando falta o aceite: primeiro acesso de quem o admin criou
 // ou nova versão dos Termos de uso ou da Política de privacidade.
 export default function AceitarTermos({ usuario, onAceito }) {
+  useTituloPagina('Aceitar termos')
   const [aceite, setAceite] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)

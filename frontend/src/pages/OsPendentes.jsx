@@ -76,7 +76,7 @@ export default function OsPendentes({ buscaInicial = '' }) {
     >
       <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <div className="pagina-titulo">OS pendentes</div>
+          <h1 className="pagina-titulo">OS pendentes</h1>
           <div className="pagina-subtitulo">
             {pendentes.length} {pendentes.length === 1 ? 'ordem não entregue' : 'ordens não entregues'}, agrupadas por status
           </div>

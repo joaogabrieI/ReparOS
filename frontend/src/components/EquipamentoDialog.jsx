@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Dialogo from './Dialogo'
 import { EQUIPAMENTO_VAZIO } from '../data/regras'
 import EquipamentoCampos from './EquipamentoCampos'
 import ErroCampo from './ErroCampo'
@@ -36,30 +37,28 @@ export default function EquipamentoDialog({ cliente, equipamento, onSalvar, onFe
   }
 
   return (
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onFechar()}>
-      <form className="dialog" style={{ width: 560 }} onSubmit={salvar}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div className="dialog-title">{equipamento ? 'Editar equipamento' : 'Cadastrar equipamento'}</div>
-            <div className="muted" style={{ fontSize: 13 }}>
-              Vinculado a {cliente.nome}
-            </div>
+    <Dialogo as="form" tituloId="eq-titulo" descricaoId="eq-descricao" onFechar={onFechar} onSubmit={salvar} style={{ width: 560 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div id="eq-titulo" className="dialog-title">{equipamento ? 'Editar equipamento' : 'Cadastrar equipamento'}</div>
+          <div id="eq-descricao" className="muted" style={{ fontSize: 13 }}>
+            Vinculado a {cliente.nome}
           </div>
-          <button type="button" className="btn btn-ghost" style={{ padding: '0 8px' }} onClick={onFechar} aria-label="Fechar">
-            <i className="ph ph-x" />
-          </button>
         </div>
-        <EquipamentoCampos valor={form} onChange={setForm} erros={erros} colunas="1fr 1fr" />
-        {erroGeral && <ErroCampo erros={[erroGeral]} />}
-        <div className="dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={onFechar}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={enviando}>
-            {enviando ? 'Salvando…' : 'Salvar equipamento'}
-          </button>
-        </div>
-      </form>
-    </div>
+        <button type="button" className="btn btn-ghost" style={{ padding: '0 8px' }} onClick={onFechar} aria-label="Fechar">
+          <i className="ph ph-x" aria-hidden="true" />
+        </button>
+      </div>
+      <EquipamentoCampos valor={form} onChange={setForm} erros={erros} colunas="1fr 1fr" />
+      {erroGeral && <ErroCampo erros={[erroGeral]} />}
+      <div className="dialog-actions">
+        <button type="button" className="btn btn-secondary" onClick={onFechar}>
+          Cancelar
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={enviando}>
+          {enviando ? 'Salvando…' : 'Salvar equipamento'}
+        </button>
+      </div>
+    </Dialogo>
   )
 }

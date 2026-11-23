@@ -137,10 +137,10 @@ export default function Inicio() {
     >
       <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <div className="pagina-titulo">
+          <h1 className="pagina-titulo">
             {saudacao(agora)}
             {usuario && `, ${usuario.nome.split(' ')[0]}`}
-          </div>
+          </h1>
           <div className="pagina-subtitulo">
             {DIAS[agora.getDay()]}, {agora.getDate()} de {MESES[agora.getMonth()]} de {agora.getFullYear()} · {resumoDia}
           </div>

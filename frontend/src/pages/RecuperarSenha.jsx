@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { AcessoCentral, CartaoAcesso } from '../components/AcessoLayout'
 import ErroCampo from '../components/ErroCampo'
 import { pedirLinkNovaSenha } from '../services/auth'
+import useTituloPagina from '../components/useTituloPagina'
 
 function Titulo({ titulo, children }) {
   return (
     <div>
-      <div style={{ fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>{titulo}</div>
+      <h1 style={{ margin: 0, fontFamily: 'inherit', fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em' }}>{titulo}</h1>
       <div style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--color-neutral-400)', marginTop: 6 }}>{children}</div>
     </div>
   )
@@ -14,6 +15,7 @@ function Titulo({ titulo, children }) {
 
 // Recuperar senha: pedir o link e confirmar o envio (3c).
 export default function RecuperarSenha() {
+  useTituloPagina('Recuperar senha')
   const [email, setEmail] = useState('')
   const [enviadoPara, setEnviadoPara] = useState(null)
   const [erro, setErro] = useState('')

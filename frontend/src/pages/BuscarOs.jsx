@@ -76,7 +76,7 @@ export default function BuscarOs({ minhas = false }) {
     >
       <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <div className="pagina-titulo">Buscar OS</div>
+          <h1 className="pagina-titulo">Buscar OS</h1>
           <div className="pagina-subtitulo">Todas as ordens, inclusive as entregues</div>
         </div>
 
