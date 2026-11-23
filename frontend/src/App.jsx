@@ -37,10 +37,13 @@ function TelaTecnico({ caminho, params }) {
   return <Inicio />
 }
 
-// Sem o aceite das versões atuais dos Termos de uso e da Política de privacidade, o sistema não abre.
+// Sem o aceite das versões atuais dos Termos de uso e da Política de privacidade, o sistema não abre
+// (a API também recusa as rotas do sistema, ver ExigeAceiteTermos no backend).
 function PortaoTermos({ children }) {
-  const { usuario, recarregarUsuario } = useDados()
-  if (usuario?.termos_pendentes) return <AceitarTermos usuario={usuario} onAceito={recarregarUsuario} />
+  const { usuario, recarregarUsuario, recarregar } = useDados()
+  // Depois do aceite, recarrega também as listas, que a API recusou enquanto faltava o aceite.
+  const aoAceitar = () => Promise.all([recarregarUsuario(), recarregar()])
+  if (usuario?.termos_pendentes) return <AceitarTermos usuario={usuario} onAceito={aoAceitar} />
   return children
 }
 

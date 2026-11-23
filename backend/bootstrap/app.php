@@ -13,7 +13,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Alterações na OS: só o técnico responsável ou um admin (ver ExigeResponsavelDaOs).
-        $middleware->alias(['responsavel.os' => \App\Http\Middleware\ExigeResponsavelDaOs::class]);
+        $middleware->alias([
+            'responsavel.os' => \App\Http\Middleware\ExigeResponsavelDaOs::class,
+            // Sem o aceite das versões atuais dos termos, a API recusa as rotas do sistema (ver ExigeAceiteTermos).
+            'termos.aceitos' => \App\Http\Middleware\ExigeAceiteTermos::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // A API sempre responde erros em JSON.

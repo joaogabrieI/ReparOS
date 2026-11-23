@@ -1,6 +1,9 @@
 // Cliente HTTP central para conversar com a API Laravel.
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
 const CHAVE_TOKEN = 'reparos.token'
+// Avisado quando a API recusa por falta do aceite dos termos (403 "termos_pendentes"); o DadosProvider
+// escuta, recarrega o usuário e o PortaoTermos (App.jsx) mostra a tela de aceite.
+export const EVENTO_TERMOS_PENDENTES = 'reparos:termos-pendentes'
 
 // O token fica no localStorage ("manter conectado") ou só nesta aba (sessionStorage).
 export function lerToken() {
@@ -60,6 +63,10 @@ export async function api(path, { method = 'GET', body, token = lerToken() } = {
     if (resposta.status === 401 && path !== '/login') {
       apagarToken()
       window.location.hash = token ? '/entrar?expirou=1' : '/entrar'
+    }
+    // Falta aceitar a versão atual dos Termos de uso e da Política de privacidade: leva à tela de aceite.
+    if (resposta.status === 403 && dados?.codigo === 'termos_pendentes') {
+      window.dispatchEvent(new CustomEvent(EVENTO_TERMOS_PENDENTES))
     }
     throw new ErroApi(dados?.message ?? `Erro ${resposta.status} ao chamar ${path}`, resposta.status, dados?.errors ?? null)
   }

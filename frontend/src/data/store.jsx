@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../services/api'
+import { api, EVENTO_TERMOS_PENDENTES } from '../services/api'
 import { listarClientes } from '../services/clientes'
 import { listarOrdens } from '../services/ordens'
 import { listarUsuarios } from '../services/usuarios'
@@ -34,6 +34,13 @@ export function DadosProvider({ caminho, children }) {
 
   useEffect(() => {
     recarregarUsuario()
+  }, [recarregarUsuario])
+
+  // A API recusou por falta do aceite dos termos (ex.: versão nova publicada com o sistema aberto):
+  // recarrega o usuário, que volta com termos_pendentes, e o PortaoTermos mostra a tela de aceite.
+  useEffect(() => {
+    window.addEventListener(EVENTO_TERMOS_PENDENTES, recarregarUsuario)
+    return () => window.removeEventListener(EVENTO_TERMOS_PENDENTES, recarregarUsuario)
   }, [recarregarUsuario])
 
   useEffect(() => {

@@ -16,6 +16,9 @@ class TermosApiTest extends TestCase
 {
     use DatabaseTransactions;
 
+    // Aqui o aceite é o que se testa: os usuários nascem sem ele.
+    protected bool $aceitarTermosAoCriarUsuario = false;
+
     private const SENHA = 'Senha@123';
 
     private function dadosCadastro(array $dados = []): array
@@ -31,6 +34,25 @@ class TermosApiTest extends TestCase
             'versao_termos' => config('termos.versao_termos'),
             'versao_privacidade' => config('termos.versao_privacidade'),
         ];
+    }
+
+    private function aceiteAtual(): array
+    {
+        return [
+            'aceite_termos' => true,
+            'versao_termos' => config('termos.versao_termos'),
+            'versao_privacidade' => config('termos.versao_privacidade'),
+        ];
+    }
+
+    /**
+     * Usuário criado pelo admin, ainda sem o aceite (primeiro acesso).
+     */
+    private function criarTecnicoSemAceite(Usuario $admin): Usuario
+    {
+        return $admin->assistencia->usuarios()->create([
+            'nome' => 'Bruno', 'email' => 'teste-termos-bruno@reparos.test', 'perfil' => 'tecnico', 'password' => self::SENHA,
+        ]);
     }
 
     private function criarAdmin(): Usuario
@@ -180,5 +202,71 @@ class TermosApiTest extends TestCase
     public function test_aceite_exige_login(): void
     {
         $this->postJson('/api/termos/aceite', ['aceite_termos' => true])->assertUnauthorized();
+    }
+
+    public function test_api_recusa_as_rotas_do_sistema_sem_o_aceite(): void
+    {
+        $tecnico = $this->criarTecnicoSemAceite($this->criarAdmin());
+        Sanctum::actingAs($tecnico);
+
+        foreach (['/api/clientes', '/api/ordens-servico', '/api/usuarios', '/api/assistencia', '/api/equipamentos'] as $rota) {
+            $this->getJson($rota)
+                ->assertForbidden()
+                ->assertJsonPath('codigo', 'termos_pendentes')
+                ->assertJsonPath('versoes.versao_termos', config('termos.versao_termos'))
+                ->assertJsonPath('message', 'Para continuar, aceite os Termos de uso e a Política de privacidade.');
+        }
+
+        // Escrita também é recusada, e nada é gravado.
+        $this->postJson('/api/clientes', ['nome' => 'Cliente sem aceite', 'telefone_whatsapp' => '11911112222'])
+            ->assertForbidden()
+            ->assertJsonPath('codigo', 'termos_pendentes');
+        $this->assertDatabaseMissing('clientes', ['nome' => 'Cliente sem aceite']);
+    }
+
+    public function test_sem_o_aceite_continuam_livres_eu_e_aceite(): void
+    {
+        $this->criarTecnicoSemAceite($this->criarAdmin());
+        $token = $this->postJson('/api/login', ['email' => 'teste-termos-bruno@reparos.test', 'password' => self::SENHA])
+            ->assertOk()
+            ->json('token');
+
+        $this->withToken($token)->getJson('/api/eu')->assertOk()->assertJsonPath('termos_pendentes', true);
+        $this->withToken($token)->getJson('/api/termos/aceites')->assertOk()->assertJsonCount(0);
+        $this->withToken($token)->getJson('/api/clientes')->assertForbidden();
+
+        $this->withToken($token)->postJson('/api/termos/aceite', $this->aceiteAtual())->assertCreated();
+        $this->withToken($token)->getJson('/api/clientes')->assertOk();
+    }
+
+    public function test_logout_funciona_antes_do_aceite(): void
+    {
+        $this->criarTecnicoSemAceite($this->criarAdmin());
+        $token = $this->postJson('/api/login', ['email' => 'teste-termos-bruno@reparos.test', 'password' => self::SENHA])->json('token');
+
+        $this->withToken($token)->postJson('/api/logout')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/clientes')->assertUnauthorized();
+    }
+
+    public function test_nova_versao_bloqueia_a_api_ate_o_novo_aceite(): void
+    {
+        $admin = $this->criarAdmin();
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/clientes')->assertOk();
+
+        config(['termos.versao_termos' => '2.0']);
+        $this->getJson('/api/clientes')->assertForbidden()->assertJsonPath('codigo', 'termos_pendentes');
+        $this->getJson('/api/atividades')->assertForbidden()->assertJsonPath('codigo', 'termos_pendentes');
+
+        $this->postJson('/api/termos/aceite', ['versao_termos' => '2.0'] + $this->aceiteAtual())->assertCreated();
+        $this->getJson('/api/clientes')->assertOk();
+    }
+
+    public function test_tela_do_cliente_nao_depende_de_aceite(): void
+    {
+        // Área pública: o cliente não tem conta nem aceita termos.
+        $this->getJson('/api/acompanhar/OS-NAO-EXISTE')->assertNotFound();
+        $this->getJson('/api/termos')->assertOk();
     }
 }

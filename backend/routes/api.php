@@ -24,13 +24,18 @@ Route::post('/cadastro', [AuthController::class, 'cadastro'])->middleware('throt
 Route::post('/senha/esqueci', [AuthController::class, 'esqueciSenha'])->middleware('throttle:senha');
 Route::post('/senha/redefinir', [AuthController::class, 'redefinirSenha'])->middleware('throttle:senha');
 
+// Liberadas mesmo sem o aceite dos termos: quem está logado, sair e aceitar.
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/eu', [AuthController::class, 'eu']);
     Route::post('/logout', [AuthController::class, 'logout']);
     // Aceite depois do login: primeiro acesso de quem o admin criou ou termos em nova versão.
     Route::post('/termos/aceite', [TermosController::class, 'aceitar']);
     Route::get('/termos/aceites', [TermosController::class, 'meus']);
+});
 
+// Rotas do sistema: além do login, exigem o aceite das versões atuais dos Termos de uso e da
+// Política de privacidade. Sem ele, respondem 403 com o código "termos_pendentes".
+Route::middleware(['auth:sanctum', 'termos.aceitos'])->group(function () {
     // Equipe e configurações: todos consultam; criar, editar, desativar e reativar é só do admin.
     Route::get('/usuarios', [UsuarioController::class, 'index']);
     Route::get('/assistencia', [AssistenciaController::class, 'show']);
