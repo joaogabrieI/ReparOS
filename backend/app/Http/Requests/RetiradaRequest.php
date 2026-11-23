@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Http\Requests\Concerns\ExigeOsDoTecnico;
+use App\Http\Requests\Concerns\ExigeOsDaAssistencia;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -11,7 +11,7 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class RetiradaRequest extends FormRequest
 {
-    use ExigeOsDoTecnico;
+    use ExigeOsDaAssistencia;
 
     public function rules(): array
     {

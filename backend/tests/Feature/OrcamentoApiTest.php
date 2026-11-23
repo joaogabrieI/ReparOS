@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\StatusOrdemServico;
 use App\Models\OrdemServico;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -21,7 +21,10 @@ class OrcamentoApiTest extends TestCase
     {
         parent::setUp();
 
-        $tecnico = Tecnico::create([
+        // A OS é preparada numa data fixa e antiga, para o histórico dela vir antes das datas que os testes fixam.
+        Carbon::setTestNow('2026-11-01 09:00:00');
+
+        $tecnico = Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => 'teste-orcamento@reparos.test',
@@ -37,6 +40,7 @@ class OrcamentoApiTest extends TestCase
         $this->os->update(['diagnostico' => 'Fonte queimada']);
         $this->os->mudarStatus(StatusOrdemServico::DiagnosticoRealizado);
 
+        Carbon::setTestNow();
         Sanctum::actingAs($tecnico);
     }
 

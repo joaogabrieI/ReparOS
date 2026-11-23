@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Usuario;
+
 return [
 
     /*
@@ -7,33 +9,33 @@ return [
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |
-    | No ReparOS quem faz login é o Técnico (dono da assistência). O Cliente
-    | acompanha a OS sem conta própria, então não existe a tabela "users".
+    | No ReparOS quem faz login são os usuários da assistência (admin ou
+    | técnico). O Cliente acompanha a OS sem conta própria.
     |
     */
 
     'defaults' => [
         'guard' => env('AUTH_GUARD', 'web'),
-        'passwords' => env('AUTH_PASSWORD_BROKER', 'tecnicos'),
+        'passwords' => env('AUTH_PASSWORD_BROKER', 'usuarios'),
     ],
 
     'guards' => [
         'web' => [
             'driver' => 'session',
-            'provider' => 'tecnicos',
+            'provider' => 'usuarios',
         ],
     ],
 
     'providers' => [
-        'tecnicos' => [
+        'usuarios' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Tecnico::class,
+            'model' => Usuario::class,
         ],
     ],
 
     'passwords' => [
-        'tecnicos' => [
-            'provider' => 'tecnicos',
+        'usuarios' => [
+            'provider' => 'usuarios',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
             'expire' => 60,
             'throttle' => 60,
@@ -41,7 +43,7 @@ return [
     ],
 
     /*
-    | Sessão do técnico: o token expira após este tempo sem uso (minutos).
+    | Sessão do usuário: o token expira após este tempo sem uso (minutos).
     */
 
     'sessao_minutos' => (int) env('SESSAO_MINUTOS', 30),

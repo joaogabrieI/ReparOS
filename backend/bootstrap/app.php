@@ -12,7 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Alterações na OS: só o técnico responsável ou um admin (ver ExigeResponsavelDaOs).
+        $middleware->alias(['responsavel.os' => \App\Http\Middleware\ExigeResponsavelDaOs::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // A API sempre responde erros em JSON.

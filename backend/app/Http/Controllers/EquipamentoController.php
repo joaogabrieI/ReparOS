@@ -8,8 +8,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Equipamentos dos clientes do técnico logado: listagem com busca, cadastro, ficha e edição.
- * Cada técnico só enxerga os equipamentos dos próprios clientes.
+ * Equipamentos dos clientes da assistência do usuário logado: listagem com busca, cadastro, ficha e edição.
+ * Cada assistência só enxerga os equipamentos dos próprios clientes.
  */
 class EquipamentoController extends Controller
 {
@@ -23,7 +23,7 @@ class EquipamentoController extends Controller
         $equipamentos = Equipamento::query()
             ->select('equipamentos.*')
             ->join('clientes', 'clientes.id', '=', 'equipamentos.cliente_id')
-            ->where('clientes.tecnico_id', $request->user()->id)
+            ->where('clientes.assistencia_id', $request->user()->assistencia_id)
             ->when($request->filled('cliente_id'), fn ($query) => $query->where('equipamentos.cliente_id', (int) $request->query('cliente_id')))
             ->when($busca !== '', function ($query) use ($busca) {
                 $query->where(function ($query) use ($busca) {
@@ -57,6 +57,7 @@ class EquipamentoController extends Controller
 
         $equipamento->load([
             'cliente:id,nome,telefone_whatsapp,endereco',
+            'criadoPor:id,nome',
             'ordensServico' => fn ($query) => $query->latest('data_abertura'),
         ]);
 
@@ -71,10 +72,10 @@ class EquipamentoController extends Controller
     }
 
     /**
-     * Equipamento de cliente de outro técnico responde como se não existisse.
+     * Equipamento de cliente de outra assistência responde como se não existisse.
      */
     private function garantirDono(Request $request, Equipamento $equipamento): void
     {
-        abort_unless($equipamento->cliente->tecnico_id === $request->user()->id, 404, 'Equipamento não encontrado.');
+        abort_unless($equipamento->cliente->assistencia_id === $request->user()->assistencia_id, 404, 'Equipamento não encontrado.');
     }
 }

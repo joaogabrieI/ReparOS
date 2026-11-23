@@ -2,12 +2,13 @@
 
 namespace App\Providers;
 
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use App\Support\LinkFrontend;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -31,6 +32,9 @@ class AppServiceProvider extends ServiceProvider
         $this->limitarTentativas();
         $this->expirarSessaoParada();
         $this->configurarLinkDeNovaSenha();
+
+        // Gestão de usuários, configurações da assistência e registro de atividade: só o admin.
+        Gate::define('admin', fn (Usuario $usuario) => $usuario->admin());
     }
 
     /**
@@ -68,7 +72,10 @@ class AppServiceProvider extends ServiceProvider
         Sanctum::authenticateAccessTokensUsing(function (PersonalAccessToken $token, bool $valido) {
             $ultimoUso = $token->last_used_at ?? $token->created_at;
 
-            return $valido && $ultimoUso->gt(now()->subMinutes(config('auth.sessao_minutos')));
+            // Usuário desativado perde o acesso na hora, mesmo com um token ainda válido.
+            return $valido
+                && $ultimoUso->gt(now()->subMinutes(config('auth.sessao_minutos')))
+                && (bool) $token->tokenable?->ativo;
         });
     }
 
@@ -77,16 +84,16 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configurarLinkDeNovaSenha(): void
     {
-        ResetPassword::createUrlUsing(function (Tecnico $tecnico, string $token) {
-            return LinkFrontend::para('nova-senha', ['token' => $token, 'email' => $tecnico->email]);
+        ResetPassword::createUrlUsing(function (Usuario $usuario, string $token) {
+            return LinkFrontend::para('nova-senha', ['token' => $token, 'email' => $usuario->email]);
         });
 
-        ResetPassword::toMailUsing(fn (Tecnico $tecnico, string $token) => (new MailMessage)
+        ResetPassword::toMailUsing(fn (Usuario $usuario, string $token) => (new MailMessage)
             ->subject('ReparOS: criar nova senha')
-            ->greeting("Olá, {$tecnico->nome}!")
+            ->greeting("Olá, {$usuario->nome}!")
             ->line('Recebemos um pedido para criar uma nova senha para a sua conta.')
-            ->action('Criar nova senha', call_user_func(ResetPassword::$createUrlCallback, $tecnico, $token))
-            ->line('O link vale por '.config('auth.passwords.tecnicos.expire').' minutos.')
+            ->action('Criar nova senha', call_user_func(ResetPassword::$createUrlCallback, $usuario, $token))
+            ->line('O link vale por '.config('auth.passwords.usuarios.expire').' minutos.')
             ->line('Se você não pediu, ignore este e-mail: sua senha continua a mesma.'));
     }
 }

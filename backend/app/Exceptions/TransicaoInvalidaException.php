@@ -16,6 +16,19 @@ class TransicaoInvalidaException extends RuntimeException
         return new self("A OS está em \"{$atual->rotulo()}\" e não pode ir para \"{$novo->rotulo()}\".");
     }
 
+    public static function semEtapaAnterior(StatusOrdemServico $atual): self
+    {
+        return new self("A OS está em \"{$atual->rotulo()}\" e não tem etapa anterior para voltar.");
+    }
+
+    /**
+     * Outra pessoa mudou a etapa entre a tela carregar e o pedido chegar (ou o botão foi clicado duas vezes).
+     */
+    public static function etapaMudou(StatusOrdemServico $atual): self
+    {
+        return new self("A OS já está em \"{$atual->rotulo()}\". Recarregue a tela antes de voltar a etapa.");
+    }
+
     public function render(): JsonResponse
     {
         return response()->json(['message' => $this->getMessage()], 422);

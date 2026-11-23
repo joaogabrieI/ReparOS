@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TipoItemOrcamento;
-use App\Http\Requests\Concerns\ExigeOsDoTecnico;
+use App\Http\Requests\Concerns\ExigeOsDaAssistencia;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
  */
 class OrcamentoRequest extends FormRequest
 {
-    use ExigeOsDoTecnico;
+    use ExigeOsDaAssistencia;
 
     protected function prepareForValidation(): void
     {

@@ -33,6 +33,17 @@ enum StatusOrdemServico: string
     }
 
     /**
+     * Rótulo considerando como o equipamento volta ao cliente: com entrega no endereço, a OS pronta aparece
+     * como "Pronto para entrega" (o valor gravado continua o mesmo).
+     */
+    public function rotuloPara(?FormaDevolucao $forma): string
+    {
+        return $this === self::ProntoParaRetirada && $forma === FormaDevolucao::Entrega
+            ? 'Pronto para entrega'
+            : $this->rotulo();
+    }
+
+    /**
      * Status para onde a OS pode ir a partir deste (RF16). A recusa do orçamento é um desvio
      * que leva à devolução sem reparo.
      *
@@ -50,6 +61,24 @@ enum StatusOrdemServico: string
             self::EmReparo => [self::ProntoParaRetirada],
             self::ProntoParaRetirada => [self::Entregue],
             self::Entregue => [],
+        };
+    }
+
+    /**
+     * Etapa para onde a OS volta quando o usuário desfaz a última mudança. Nulo em "Aberta" (não há
+     * etapa antes) e em "Entregue", que depende de como a OS chegou lá (pronta ou devolvida sem reparo).
+     * O orçamento enviado volta direto para "Diagnóstico realizado": "Orçamento enviado" e "Aguardando
+     * aprovação" acontecem juntos, e é em "Diagnóstico realizado" que o orçamento pode ser corrigido.
+     */
+    public function anterior(): ?self
+    {
+        return match ($this) {
+            self::Aberta, self::Entregue => null,
+            self::AguardandoDiagnostico => self::Aberta,
+            self::DiagnosticoRealizado => self::AguardandoDiagnostico,
+            self::OrcamentoEnviado, self::AguardandoAprovacao => self::DiagnosticoRealizado,
+            self::EmReparo, self::OrcamentoRecusado => self::AguardandoAprovacao,
+            self::ProntoParaRetirada => self::EmReparo,
         };
     }
 

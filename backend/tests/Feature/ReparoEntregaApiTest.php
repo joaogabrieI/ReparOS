@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\StatusOrdemServico;
 use App\Models\OrdemServico;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -18,7 +18,7 @@ class ReparoEntregaApiTest extends TestCase
     // Roda no banco local e desfaz tudo ao final de cada teste.
     use DatabaseTransactions;
 
-    private Tecnico $tecnico;
+    private Usuario $tecnico;
 
     protected function setUp(): void
     {
@@ -35,9 +35,9 @@ class ReparoEntregaApiTest extends TestCase
         parent::tearDown();
     }
 
-    private function criarTecnico(string $email): Tecnico
+    private function criarTecnico(string $email): Usuario
     {
-        return Tecnico::create([
+        return Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => $email,
@@ -45,7 +45,7 @@ class ReparoEntregaApiTest extends TestCase
         ]);
     }
 
-    private function criarOs(?Tecnico $tecnico = null): OrdemServico
+    private function criarOs(?Usuario $tecnico = null): OrdemServico
     {
         // Telefone diferente a cada cliente: o mesmo técnico não cadastra dois clientes com o mesmo número.
         return ($tecnico ?? $this->tecnico)->clientes()
@@ -98,7 +98,7 @@ class ReparoEntregaApiTest extends TestCase
         $this->postJson($this->url($os, 'pronto'))
             ->assertOk()
             ->assertJsonPath('status', 'pronto_para_retirada')
-            ->assertJsonPath('historico.6.observacao', 'Reparo concluído');
+            ->assertJsonPath('historico.6.observacao', 'Reparo concluído. Cliente retira na assistência');
 
         Carbon::setTestNow(now()->addMinute());
         $this->postJson($this->url($os, 'entrega'), ['observacao' => 'Entregue à própria cliente, com carregador'])

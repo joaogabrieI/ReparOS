@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Concerns;
 
 /**
- * Para pedidos sobre uma OS existente: ela precisa ser de um cliente do técnico logado.
+ * Para pedidos sobre uma OS existente: ela precisa ser de um cliente da assistência do usuário logado.
  */
-trait ExigeOsDoTecnico
+trait ExigeOsDaAssistencia
 {
     public function authorize(): bool
     {
@@ -15,7 +15,7 @@ trait ExigeOsDoTecnico
     }
 
     /**
-     * OS de outro técnico responde como se não existisse.
+     * OS de outra assistência responde como se não existisse.
      */
     protected function failedAuthorization(): void
     {

@@ -16,17 +16,17 @@ class EquipamentoRequest extends FormRequest
     public const TIPOS = ['Smartphone', 'Tablet', 'Notebook', 'Videogame', 'Controle de videogame'];
 
     /**
-     * Na edição, o equipamento precisa ser de um cliente do técnico logado.
+     * Na edição, o equipamento precisa ser de um cliente da assistência do usuário logado.
      */
     public function authorize(): bool
     {
         $equipamento = $this->route('equipamento');
 
-        return ! $equipamento || $equipamento->cliente->tecnico_id === $this->user()->id;
+        return ! $equipamento || $equipamento->cliente->assistencia_id === $this->user()->assistencia_id;
     }
 
     /**
-     * Equipamento de outro técnico responde como se não existisse.
+     * Equipamento de outra assistência responde como se não existisse.
      */
     protected function failedAuthorization(): void
     {
@@ -53,7 +53,7 @@ class EquipamentoRequest extends FormRequest
                 : [
                     'required',
                     'integer',
-                    Rule::exists('clientes', 'id')->where('tecnico_id', $this->user()->id),
+                    Rule::exists('clientes', 'id')->where('assistencia_id', $this->user()->assistencia_id),
                 ],
             'tipo' => ['required', 'string', Rule::in(self::TIPOS)],
             'marca' => ['required', 'string', 'max:255'],

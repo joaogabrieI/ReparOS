@@ -97,6 +97,6 @@ class OrcamentoController extends Controller
 
     private function ficha(OrdemServico $os): OrdemServico
     {
-        return $os->refresh()->load(['orcamento.itens', 'historico']);
+        return $os->refresh()->load(['orcamento.itens', 'historico.usuario:id,nome', 'responsavel:id,nome,ativo']);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\SituacaoOrcamento;
 use App\Enums\StatusOrdemServico;
+use App\Models\Concerns\RegistraAtividade;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class Orcamento extends Model
 {
-    use HasFactory;
+    use HasFactory, RegistraAtividade;
 
     protected $fillable = [
         'ordem_servico_id',
@@ -112,6 +113,21 @@ class Orcamento extends Model
     public function codigoConfere(?string $codigo): bool
     {
         return $this->codigo_resposta !== null && is_string($codigo) && hash_equals($this->codigo_resposta, $codigo);
+    }
+
+    public function assistenciaId(): int
+    {
+        return $this->ordemServico->assistenciaId();
+    }
+
+    public function descricaoAuditoria(): string
+    {
+        return "o orçamento da OS {$this->ordemServico->numero}";
+    }
+
+    public function criadoPor(): BelongsTo
+    {
+        return $this->belongsTo(Usuario::class, 'criado_por_id');
     }
 
     public function ordemServico(): BelongsTo

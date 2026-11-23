@@ -8,6 +8,7 @@ use App\Models\HistoricoStatus;
 use App\Models\ItemOrcamento;
 use App\Models\Orcamento;
 use App\Models\OrdemServico;
+use App\Support\Auditoria;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -49,11 +50,12 @@ class AcompanhamentoController extends Controller
             'Este orçamento venceu em '.$orcamento->validade_ate->format('d/m/Y').'. Fale com a assistência para confirmar os valores.',
         );
 
-        $orcamento->registrarResposta(
+        // Quem responde é o cliente: nada fica no nome de um usuário da assistência.
+        Auditoria::peloCliente(fn () => $orcamento->registrarResposta(
             $aprovado,
             Orcamento::CANAL_LINK,
             ($aprovado ? 'Orçamento aprovado' : 'Orçamento recusado').' pelo próprio cliente na tela de acompanhamento (link enviado pelo WhatsApp).',
-        );
+        ));
 
         return response()->json($this->andamento($this->buscar($numero)));
     }
@@ -62,7 +64,7 @@ class AcompanhamentoController extends Controller
     {
         $os = OrdemServico::query()
             ->where('numero', strtoupper(trim($numero)))
-            ->with('equipamento:id,cliente_id,tipo,marca,modelo', 'equipamento.cliente.tecnico:id,nome_assistencia', 'orcamento.itens', 'historico')
+            ->with('equipamento:id,cliente_id,tipo,marca,modelo', 'equipamento.cliente.assistencia:id,nome', 'orcamento.itens', 'historico')
             ->first();
 
         abort_if($os === null, 404, 'OS não encontrada.');
@@ -76,11 +78,15 @@ class AcompanhamentoController extends Controller
 
         return [
             'numero' => $os->numero,
-            'assistencia' => $os->equipamento->cliente->tecnico->nome_assistencia,
+            'assistencia' => $os->equipamento->cliente->assistencia->nome,
             'equipamento' => $os->equipamento->only('tipo', 'marca', 'modelo'),
             'status' => $os->status,
-            'status_rotulo' => $os->status->rotulo(),
-            'proximos' => array_map(fn (StatusOrdemServico $s) => $s->rotulo(), $os->status->proximos()),
+            'status_rotulo' => $os->status_rotulo,
+            'proximos' => array_map(fn (StatusOrdemServico $s) => $s->rotuloPara($os->forma_devolucao), $os->status->proximos()),
+            // Como o equipamento volta: o cliente vê se retira ou se recebe em casa, e a data combinada. O endereço não aparece.
+            'forma_devolucao' => $os->forma_devolucao,
+            'forma_devolucao_rotulo' => $os->forma_devolucao_rotulo,
+            'entrega_agendada' => $os->entrega_agendada,
             'data_abertura' => $os->data_abertura,
             'data_status' => $os->data_status,
             'data_entrega' => $os->data_entrega,

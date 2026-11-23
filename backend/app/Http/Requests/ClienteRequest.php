@@ -11,17 +11,17 @@ use Illuminate\Validation\Rule;
 class ClienteRequest extends FormRequest
 {
     /**
-     * Na edição, o cliente precisa ser do técnico logado.
+     * Na edição, o cliente precisa ser da assistência do usuário logado.
      */
     public function authorize(): bool
     {
         $cliente = $this->route('cliente');
 
-        return ! $cliente || $cliente->tecnico_id === $this->user()->id;
+        return ! $cliente || $cliente->assistencia_id === $this->user()->assistencia_id;
     }
 
     /**
-     * Cliente de outro técnico responde como se não existisse.
+     * Cliente de outra assistência responde como se não existisse.
      */
     protected function failedAuthorization(): void
     {
@@ -58,9 +58,9 @@ class ClienteRequest extends FormRequest
                 'required',
                 'string',
                 'between:10,11',
-                // Único dentro do técnico logado; na edição ignora o próprio cliente.
+                // Único dentro da assistência; na edição ignora o próprio cliente.
                 Rule::unique('clientes')
-                    ->where('tecnico_id', $this->user()->id)
+                    ->where('assistencia_id', $this->user()->assistencia_id)
                     ->ignore($this->route('cliente')),
             ],
             'endereco' => ['required', 'string', 'max:255'],

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\FormaDevolucao;
 use App\Enums\StatusOrdemServico;
 use App\Http\Requests\EntregaRequest;
 use App\Http\Requests\ProntoRequest;
@@ -34,7 +35,7 @@ class ReparoController extends Controller
     }
 
     /**
-     * "Em reparo" → "Pronto para retirada" (RF14). Exige o serviço executado registrado, para a OS
+     * "Em reparo" → "Pronto para retirada" ou "Pronto para entrega" (RF14), conforme a forma de devolução. Exige o serviço executado registrado, para a OS
      * nunca ficar pronta sem dizer o que foi feito.
      */
     public function pronto(ProntoRequest $request, OrdemServico $ordemServico): JsonResponse
@@ -45,10 +46,19 @@ class ReparoController extends Controller
             'Registre o serviço executado antes de marcar a OS como pronta.',
         );
 
-        $ordemServico->mudarStatus(
-            StatusOrdemServico::ProntoParaRetirada,
-            $request->validated('observacao') ?: 'Reparo concluído',
-        );
+        DB::transaction(function () use ($request, $ordemServico) {
+            // A forma de devolução vem antes da mudança de status, para o histórico já sair com o nome certo.
+            if ($request->devolucao() !== []) {
+                $ordemServico->update($request->devolucao());
+            }
+
+            $ordemServico->mudarStatus(
+                StatusOrdemServico::ProntoParaRetirada,
+                $request->validated('observacao') ?: ($ordemServico->forma_devolucao === FormaDevolucao::Entrega
+                    ? 'Reparo concluído. Equipamento será entregue no endereço do cliente'
+                    : 'Reparo concluído. Cliente retira na assistência'),
+            );
+        });
 
         return response()->json($this->ficha($ordemServico));
     }
@@ -62,10 +72,14 @@ class ReparoController extends Controller
         $semReparo = $ordemServico->status === StatusOrdemServico::OrcamentoRecusado;
 
         DB::transaction(function () use ($request, $ordemServico, $semReparo) {
+            // Só troca a forma de devolução se a OS ainda puder ser entregue; senão mudarStatus() recusa.
+            if ($request->devolucao() !== [] && $ordemServico->status->podeIrPara(StatusOrdemServico::Entregue)) {
+                $ordemServico->update($request->devolucao());
+            }
+
             $ordemServico->mudarStatus(
                 StatusOrdemServico::Entregue,
-                $request->validated('observacao')
-                    ?: ($semReparo ? 'Equipamento devolvido sem reparo' : 'Equipamento entregue ao cliente'),
+                $request->validated('observacao') ?: $ordemServico->observacaoDevolucao($semReparo),
             );
             $ordemServico->update(['data_entrega' => $request->validated('data_entrega') ?? now()]);
         });
@@ -80,11 +94,11 @@ class ReparoController extends Controller
     {
         abort_unless($ordemServico->pertenceA($request->user()), 404, 'OS não encontrada.');
 
-        return response()->json($ordemServico->historico()->get());
+        return response()->json($ordemServico->historico()->with('usuario:id,nome')->get());
     }
 
     private function ficha(OrdemServico $os): OrdemServico
     {
-        return $os->refresh()->load(['orcamento.itens', 'historico']);
+        return $os->refresh()->load(['orcamento.itens', 'historico.usuario:id,nome', 'responsavel:id,nome,ativo']);
     }
 }

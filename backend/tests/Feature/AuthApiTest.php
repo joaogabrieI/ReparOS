@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
@@ -17,9 +17,9 @@ class AuthApiTest extends TestCase
 
     private const SENHA = 'Senha@123';
 
-    private function criarTecnico(string $email = 'teste-auth@reparos.test'): Tecnico
+    private function criarTecnico(string $email = 'teste-auth@reparos.test'): Usuario
     {
-        return Tecnico::create([
+        return Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => $email,
@@ -36,6 +36,9 @@ class AuthApiTest extends TestCase
             'email' => 'teste-cadastro@reparos.test',
             'password' => self::SENHA,
             'password_confirmation' => self::SENHA,
+            'aceite_termos' => true,
+            'versao_termos' => config('termos.versao_termos'),
+            'versao_privacidade' => config('termos.versao_privacidade'),
         ];
     }
 
@@ -45,9 +48,9 @@ class AuthApiTest extends TestCase
 
         $token = $this->postJson('/api/login', ['email' => 'Teste-Auth@reparos.test', 'password' => self::SENHA])
             ->assertOk()
-            ->assertJsonPath('tecnico.email', 'teste-auth@reparos.test')
+            ->assertJsonPath('usuario.email', 'teste-auth@reparos.test')
             ->assertJsonPath('expira_em_minutos', 30)
-            ->assertJsonMissingPath('tecnico.password')
+            ->assertJsonMissingPath('usuario.password')
             ->json('token');
 
         $this->withToken($token)->getJson('/api/eu')->assertOk()->assertJsonPath('email', 'teste-auth@reparos.test');
@@ -119,15 +122,15 @@ class AuthApiTest extends TestCase
     {
         $token = $this->postJson('/api/cadastro', $this->dadosCadastro(['email' => ' Teste-Cadastro@reparos.test ']))
             ->assertCreated()
-            ->assertJsonPath('tecnico.email', 'teste-cadastro@reparos.test')
-            ->assertJsonPath('tecnico.telefone', '1140028922')
+            ->assertJsonPath('usuario.email', 'teste-cadastro@reparos.test')
+            ->assertJsonPath('usuario.assistencia.telefone', '1140028922')
             ->json('token');
 
-        $tecnico = Tecnico::where('email', 'teste-cadastro@reparos.test')->firstOrFail();
+        $tecnico = Usuario::where('email', 'teste-cadastro@reparos.test')->firstOrFail();
         $this->assertStringStartsWith('$2y$', $tecnico->password);
         $this->assertTrue(Hash::check(self::SENHA, $tecnico->password));
 
-        $this->withToken($token)->getJson('/api/eu')->assertOk()->assertJsonPath('nome_assistencia', 'MTec Reparos');
+        $this->withToken($token)->getJson('/api/eu')->assertOk()->assertJsonPath('assistencia.nome', 'MTec Reparos')->assertJsonPath('perfil', 'admin');
     }
 
     public function test_cadastro_exige_senha_com_letra_numero_e_caractere_especial(): void

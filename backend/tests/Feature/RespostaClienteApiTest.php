@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\OrdemServico;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -17,13 +17,13 @@ class RespostaClienteApiTest extends TestCase
     // Roda no banco local e desfaz tudo ao final de cada teste.
     use DatabaseTransactions;
 
-    private Tecnico $tecnico;
+    private Usuario $tecnico;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->tecnico = Tecnico::create([
+        $this->tecnico = Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => 'teste-resposta-cliente@reparos.test',
@@ -108,6 +108,9 @@ class RespostaClienteApiTest extends TestCase
         $this->assertNull($orcamento->codigo_resposta);
 
         $ultimo = $os->historico()->reorder('id', 'desc')->first();
+        // Quem respondeu foi o cliente: a mudança não fica no nome de nenhum usuário da assistência.
+        $this->assertNull($ultimo->usuario_id);
+        $this->assertDatabaseHas('registros_atividade', ['acao' => 'mudou_status', 'entidade_id' => $os->id, 'usuario_id' => null, 'dados_novos->status' => 'em_reparo']);
         $this->assertSame('aguardando_aprovacao', $ultimo->status_anterior->value);
         $this->assertSame('em_reparo', $ultimo->status_novo->value);
         $this->assertSame('Orçamento aprovado pelo próprio cliente na tela de acompanhamento (link enviado pelo WhatsApp).', $ultimo->observacao);
@@ -187,5 +190,16 @@ class RespostaClienteApiTest extends TestCase
         $this->responder($os, ['codigo' => 'chute-10', 'aprovado' => true])
             ->assertStatus(429)
             ->assertJsonPath('message', fn (string $m) => str_starts_with($m, 'Muitas tentativas de resposta ao orçamento.'));
+    }
+
+    public function test_resposta_pelo_link_nao_fica_no_nome_do_usuario_logado_no_mesmo_navegador(): void
+    {
+        [$os, $codigo] = $this->osAguardandoAprovacao();
+        // O técnico abre o link do cliente no próprio navegador, ainda logado.
+        Sanctum::actingAs($this->tecnico);
+
+        $this->responder($os, ['codigo' => $codigo, 'aprovado' => false])->assertOk();
+
+        $this->assertNull($os->historico()->reorder('id', 'desc')->first()->usuario_id);
     }
 }

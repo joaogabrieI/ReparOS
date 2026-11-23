@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Cliente;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -13,7 +13,7 @@ class ClienteApiTest extends TestCase
     // Roda no banco local e desfaz tudo ao final de cada teste.
     use DatabaseTransactions;
 
-    private Tecnico $tecnico;
+    private Usuario $tecnico;
 
     protected function setUp(): void
     {
@@ -23,9 +23,9 @@ class ClienteApiTest extends TestCase
         Sanctum::actingAs($this->tecnico);
     }
 
-    private function criarTecnico(string $email): Tecnico
+    private function criarTecnico(string $email): Usuario
     {
-        return Tecnico::create([
+        return Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => $email,
@@ -33,7 +33,7 @@ class ClienteApiTest extends TestCase
         ]);
     }
 
-    private function criarCliente(Tecnico $tecnico, array $dados = []): Cliente
+    private function criarCliente(Usuario $tecnico, array $dados = []): Cliente
     {
         return $tecnico->clientes()->create($dados + [
             'nome' => 'Ana Souza',
@@ -60,7 +60,7 @@ class ClienteApiTest extends TestCase
             ->assertJson(['nome' => 'Ana Souza', 'telefone_whatsapp' => '11988887777']);
 
         $this->assertDatabaseHas('clientes', [
-            'tecnico_id' => $this->tecnico->id,
+            'assistencia_id' => $this->tecnico->assistencia_id,
             'telefone_whatsapp' => '11988887777',
         ]);
     }

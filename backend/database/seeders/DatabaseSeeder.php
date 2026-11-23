@@ -2,27 +2,42 @@
 
 namespace Database\Seeders;
 
+use App\Enums\PerfilUsuario;
 use App\Enums\StatusOrdemServico;
 use App\Enums\TipoItemOrcamento;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Auth;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Dados de exemplo para testar localmente.
+     * Dados de exemplo para testar localmente: uma assistência com um admin e um técnico.
      */
     public function run(): void
     {
-        $tecnico = Tecnico::create([
+        $admin = Usuario::criarComAssistencia([
             'nome' => 'Técnico Demo',
             'nome_assistencia' => 'Assistência Demo',
-            'telefone' => '(11) 90000-0000',
+            'telefone' => '11900000000',
             'email' => 'tecnico@reparos.test',
             'password' => 'Senha@123',
         ]);
 
-        $cliente = $tecnico->clientes()->create([
+        // O admin aceitou os termos no cadastro; a Ana, criada pelo admin, aceita no primeiro acesso.
+        $admin->registrarAceiteTermos();
+
+        $tecnico = $admin->assistencia->usuarios()->create([
+            'nome' => 'Ana Técnica',
+            'email' => 'ana@reparos.test',
+            'password' => 'Senha@123',
+            'perfil' => PerfilUsuario::Tecnico,
+        ]);
+
+        // O que vem a seguir fica no registro de atividade e no histórico em nome do admin.
+        Auth::guard('sanctum')->setUser($admin);
+
+        $cliente = $admin->clientes()->create([
             'nome' => 'Maria Cliente',
             'telefone_whatsapp' => '11911112222',
             'endereco' => 'Rua Exemplo, 123',
@@ -36,6 +51,7 @@ class DatabaseSeeder extends Seeder
 
         $os = $equipamento->ordensServico()->create([
             'problema_relatado' => 'Não liga e esquenta muito.',
+            'responsavel_id' => $tecnico->id,
         ]);
 
         $os->mudarStatus(StatusOrdemServico::AguardandoDiagnostico, 'Equipamento retirado na casa do cliente');

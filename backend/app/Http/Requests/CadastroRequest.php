@@ -2,15 +2,17 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidaAceiteTermos;
 use App\Http\Requests\Concerns\ValidaSenha;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Cadastro da assistência e do acesso do técnico.
+ * Cadastro da assistência e do primeiro usuário, que é o admin dela.
+ * Exige o aceite dos Termos de uso e da Política de privacidade nas versões em vigor.
  */
 class CadastroRequest extends FormRequest
 {
-    use ValidaSenha;
+    use ValidaAceiteTermos, ValidaSenha;
 
     protected function prepareForValidation(): void
     {
@@ -28,9 +30,9 @@ class CadastroRequest extends FormRequest
             'nome' => ['required', 'string', 'max:255'],
             'nome_assistencia' => ['required', 'string', 'max:255'],
             'telefone' => ['required', 'string', 'between:10,11'],
-            'email' => ['required', 'email', 'max:255', 'unique:tecnicos,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:usuarios,email'],
             'password' => $this->regrasSenha(),
-        ];
+        ] + $this->regrasAceiteTermos();
     }
 
     public function messages(): array
@@ -46,6 +48,6 @@ class CadastroRequest extends FormRequest
             'email.email' => 'Informe um e-mail válido.',
             'email.max' => 'O e-mail pode ter no máximo 255 caracteres.',
             'email.unique' => 'Já existe uma conta com este e-mail.',
-        ] + $this->mensagensSenha();
+        ] + $this->mensagensSenha() + $this->mensagensAceiteTermos();
     }
 }

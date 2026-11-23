@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Http\Requests\Concerns\ExigeOsDoTecnico;
+use App\Http\Requests\Concerns\ExigeOsDaAssistencia;
 use App\Models\Orcamento;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
  */
 class RespostaOrcamentoRequest extends FormRequest
 {
-    use ExigeOsDoTecnico;
+    use ExigeOsDaAssistencia;
 
     public function rules(): array
     {

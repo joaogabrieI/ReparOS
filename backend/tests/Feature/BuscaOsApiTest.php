@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Enums\StatusOrdemServico;
 use App\Models\Cliente;
 use App\Models\OrdemServico;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -19,7 +19,7 @@ class BuscaOsApiTest extends TestCase
     // Roda no banco local e desfaz tudo ao final de cada teste.
     use DatabaseTransactions;
 
-    private Tecnico $tecnico;
+    private Usuario $tecnico;
 
     protected function setUp(): void
     {
@@ -36,9 +36,9 @@ class BuscaOsApiTest extends TestCase
         parent::tearDown();
     }
 
-    private function criarTecnico(string $email): Tecnico
+    private function criarTecnico(string $email): Usuario
     {
-        return Tecnico::create([
+        return Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => $email,
@@ -46,7 +46,7 @@ class BuscaOsApiTest extends TestCase
         ]);
     }
 
-    private function criarCliente(string $nome, string $telefone, ?Tecnico $tecnico = null): Cliente
+    private function criarCliente(string $nome, string $telefone, ?Usuario $tecnico = null): Cliente
     {
         return ($tecnico ?? $this->tecnico)->clientes()
             ->create(['nome' => $nome, 'telefone_whatsapp' => $telefone, 'endereco' => 'Rua A, 1']);

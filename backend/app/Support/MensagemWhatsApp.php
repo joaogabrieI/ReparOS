@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\FormaDevolucao;
 use App\Enums\StatusOrdemServico;
 use App\Enums\TipoItemOrcamento;
 use App\Models\ItemOrcamento;
@@ -29,20 +30,28 @@ class MensagemWhatsApp
             StatusOrdemServico::DiagnosticoRealizado => ["{$ola} O diagnóstico do seu {$aparelho} foi concluído. Em breve enviaremos o orçamento."],
             StatusOrdemServico::OrcamentoEnviado,
             StatusOrdemServico::AguardandoAprovacao => $this->orcamento($ola, $aparelho),
-            StatusOrdemServico::OrcamentoRecusado => ["{$ola} Registramos que o orçamento do seu {$aparelho} não foi aprovado. O aparelho está disponível para devolução, sem reparo. Quando fica bom pra você?"],
+            StatusOrdemServico::OrcamentoRecusado => $this->entrega()
+                ? ["{$ola} Registramos que o orçamento do seu {$aparelho} não foi aprovado. Vamos devolver o aparelho, sem reparo, no endereço {$os->endereco_entrega}.", $this->quandoEntregar()]
+                : ["{$ola} Registramos que o orçamento do seu {$aparelho} não foi aprovado. O aparelho está disponível para retirada na assistência, sem reparo. Quando fica bom pra você?"],
             StatusOrdemServico::EmReparo => ["{$ola} O reparo do seu {$aparelho} está em andamento".($os->orcamento?->prazo_entrega ? ', com previsão para '.$os->orcamento->prazo_entrega->format('d/m/Y').'.' : '.')],
-            StatusOrdemServico::ProntoParaRetirada => array_filter([
-                "{$ola} Seu {$aparelho} está pronto para retirada.",
+            StatusOrdemServico::ProntoParaRetirada => array_values(array_filter($this->entrega() ? [
+                "{$ola} Seu {$aparelho} está pronto e vamos entregá-lo no endereço {$os->endereco_entrega}.",
+                $os->orcamento ? 'Total: '.$this->moeda($os->orcamento->valor_total) : null,
+                $this->quandoEntregar(),
+            ] : [
+                "{$ola} Seu {$aparelho} está pronto para retirada na assistência.",
                 $os->orcamento ? 'Total: '.$this->moeda($os->orcamento->valor_total) : null,
                 'Quando fica bom pra você?',
-            ]),
-            StatusOrdemServico::Entregue => ["{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!"],
+            ])),
+            StatusOrdemServico::Entregue => [$this->entrega()
+                ? "{$ola} Seu {$aparelho} foi entregue no seu endereço. Obrigado pela confiança!"
+                : "{$ola} Seu {$aparelho} foi entregue. Obrigado pela confiança!"],
         };
 
         $acompanhar = $this->codigoResposta()
             ? "Para aprovar ou recusar pelo celular, abra: {$this->linkAcompanhamento()}"
             : "Acompanhe o reparo pelo link: {$this->linkAcompanhamento()}";
-        $assinatura = $os->equipamento->cliente->tecnico->nome_assistencia;
+        $assinatura = $os->equipamento->cliente->assistencia->nome;
 
         return implode("\n", [...$linhas, '', $acompanhar, '', $assinatura]);
     }
@@ -98,6 +107,23 @@ class MensagemWhatsApp
             $orcamento->validade_ate ? 'Orçamento válido até '.$orcamento->validade_ate->format('d/m/Y').'.' : null,
             'Podemos seguir?',
         ], fn ($linha) => $linha !== null));
+    }
+
+    private function entrega(): bool
+    {
+        return $this->os->forma_devolucao === FormaDevolucao::Entrega;
+    }
+
+    /**
+     * Data combinada da entrega, ou o convite para combinar uma.
+     */
+    private function quandoEntregar(): string
+    {
+        $data = $this->os->entrega_agendada;
+
+        return $data
+            ? "A entrega está combinada para {$data->format('d/m \\à\\s H:i')}. Se precisar mudar, é só responder esta mensagem."
+            : 'Qual o melhor dia e horário para a entrega?';
     }
 
     private function codigoResposta(): ?string

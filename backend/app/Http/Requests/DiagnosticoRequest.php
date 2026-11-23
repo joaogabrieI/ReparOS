@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Http\Requests\Concerns\ExigeOsDoTecnico;
+use App\Http\Requests\Concerns\ExigeOsDaAssistencia;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class DiagnosticoRequest extends FormRequest
 {
-    use ExigeOsDoTecnico;
+    use ExigeOsDaAssistencia;
 
     protected function prepareForValidation(): void
     {

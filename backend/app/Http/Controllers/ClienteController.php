@@ -8,8 +8,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Clientes do técnico logado: listagem com busca, cadastro, ficha e edição.
- * Cada técnico só enxerga os próprios clientes.
+ * Clientes da assistência do usuário logado: listagem com busca, cadastro, ficha e edição.
+ * Cada assistência só enxerga os próprios clientes.
  */
 class ClienteController extends Controller
 {
@@ -51,7 +51,7 @@ class ClienteController extends Controller
     {
         $this->garantirDono($request, $cliente);
 
-        $cliente->load(['equipamentos' => fn ($query) => $query->orderBy('id')->with([
+        $cliente->load(['criadoPor:id,nome', 'equipamentos' => fn ($query) => $query->orderBy('id')->with([
             'ordensServico' => fn ($query) => $query->latest('data_abertura'),
         ])]);
 
@@ -66,10 +66,10 @@ class ClienteController extends Controller
     }
 
     /**
-     * Cliente de outro técnico responde como se não existisse.
+     * Cliente de outra assistência responde como se não existisse.
      */
     private function garantirDono(Request $request, Cliente $cliente): void
     {
-        abort_unless($cliente->tecnico_id === $request->user()->id, 404, 'Cliente não encontrado.');
+        abort_unless($cliente->assistencia_id === $request->user()->assistencia_id, 404, 'Cliente não encontrado.');
     }
 }

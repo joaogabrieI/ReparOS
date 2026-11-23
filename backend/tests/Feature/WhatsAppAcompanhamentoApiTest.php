@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\OrdemServico;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -17,7 +17,7 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
     // Roda no banco local e desfaz tudo ao final de cada teste.
     use DatabaseTransactions;
 
-    private Tecnico $tecnico;
+    private Usuario $tecnico;
 
     protected function setUp(): void
     {
@@ -34,9 +34,9 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         parent::tearDown();
     }
 
-    private function criarTecnico(string $email): Tecnico
+    private function criarTecnico(string $email): Usuario
     {
-        return Tecnico::create([
+        return Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => $email,
@@ -44,7 +44,7 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         ]);
     }
 
-    private function criarOs(?Tecnico $tecnico = null, array $dados = []): OrdemServico
+    private function criarOs(?Usuario $tecnico = null, array $dados = []): OrdemServico
     {
         return ($tecnico ?? $this->tecnico)->clientes()
             ->create(['nome' => 'Ana Souza', 'telefone_whatsapp' => '119'.random_int(10000000, 99999999), 'endereco' => 'Rua A, 1'])
@@ -80,7 +80,7 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
 
     public function test_monta_link_wa_me_com_a_mensagem_do_status(): void
     {
-        $os = $this->criarOs(dados: ['retirada_agendada' => '2026-11-12 14:30']);
+        $os = $this->criarOs(dados: ['retirada_agendada' => '2030-11-12 14:30']);
         $telefone = '55'.$os->equipamento->cliente->telefone_whatsapp;
 
         $resposta = $this->whatsapp($os);
@@ -113,7 +113,7 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         $this->putJson("/api/ordens-servico/{$os->id}/reparo", ['servico_executado' => 'Troca da fonte'])->assertOk();
         $this->postJson("/api/ordens-servico/{$os->id}/pronto")->assertOk();
         $mensagem = $this->whatsapp($os)['mensagem'];
-        $this->assertStringContainsString('está pronto para retirada.', $mensagem);
+        $this->assertStringContainsString('está pronto para retirada na assistência.', $mensagem);
         $this->assertStringContainsString('Total: R$ 1.350,00', $mensagem);
 
         $this->postJson("/api/ordens-servico/{$os->id}/entrega")->assertOk();
@@ -126,7 +126,7 @@ class WhatsAppAcompanhamentoApiTest extends TestCase
         $this->enviarOrcamento($os);
         $this->postJson("/api/ordens-servico/{$os->id}/orcamento/resposta", ['aprovado' => false, 'canal' => 'telefone'])->assertOk();
 
-        $this->assertStringContainsString('disponível para devolução, sem reparo', $this->whatsapp($os)['mensagem']);
+        $this->assertStringContainsString('disponível para retirada na assistência, sem reparo', $this->whatsapp($os)['mensagem']);
     }
 
     public function test_mensagem_traz_o_link_da_tela_de_acompanhamento(): void

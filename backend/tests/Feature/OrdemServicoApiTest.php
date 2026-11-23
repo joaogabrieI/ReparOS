@@ -6,7 +6,7 @@ use App\Enums\StatusOrdemServico;
 use App\Models\Cliente;
 use App\Models\Equipamento;
 use App\Models\OrdemServico;
-use App\Models\Tecnico;
+use App\Models\Usuario;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
@@ -17,7 +17,7 @@ class OrdemServicoApiTest extends TestCase
     // Roda no banco local e desfaz tudo ao final de cada teste.
     use DatabaseTransactions;
 
-    private Tecnico $tecnico;
+    private Usuario $tecnico;
 
     private Equipamento $equipamento;
 
@@ -30,9 +30,9 @@ class OrdemServicoApiTest extends TestCase
         Sanctum::actingAs($this->tecnico);
     }
 
-    private function criarTecnico(string $email): Tecnico
+    private function criarTecnico(string $email): Usuario
     {
-        return Tecnico::create([
+        return Usuario::criarComAssistencia([
             'nome' => 'Técnico Teste',
             'nome_assistencia' => 'Assistência Teste',
             'email' => $email,
@@ -40,7 +40,7 @@ class OrdemServicoApiTest extends TestCase
         ]);
     }
 
-    private function criarCliente(Tecnico $tecnico): Cliente
+    private function criarCliente(Usuario $tecnico): Cliente
     {
         return $tecnico->clientes()->create([
             'nome' => 'Ana Souza',
@@ -81,7 +81,7 @@ class OrdemServicoApiTest extends TestCase
         $resposta = $this->postJson('/api/ordens-servico', [
             'equipamento_id' => $this->equipamento->id,
             'problema_relatado' => '  Tela piscando  ',
-            'retirada_agendada' => '2026-11-10 14:00',
+            'retirada_agendada' => '2030-11-10 14:00',
         ])
             ->assertCreated()
             ->assertJson([
@@ -94,7 +94,7 @@ class OrdemServicoApiTest extends TestCase
         $this->assertMatchesRegularExpression('/^OS-\d{8}-[A-Z0-9]{5}$/', $resposta->json('numero'));
         $this->assertNotNull($resposta->json('data_abertura'));
         // 14:00 em Brasília (fuso da aplicação) volta em UTC no JSON.
-        $this->assertStringStartsWith('2026-11-10T17:00', $resposta->json('retirada_agendada'));
+        $this->assertStringStartsWith('2030-11-10T17:00', $resposta->json('retirada_agendada'));
     }
 
     public function test_valida_abertura(): void
@@ -163,7 +163,7 @@ class OrdemServicoApiTest extends TestCase
 
         $this->putJson("/api/ordens-servico/{$os->id}", [
             'problema_relatado' => 'Não liga e esquenta',
-            'retirada_agendada' => '2026-11-12 09:30',
+            'retirada_agendada' => '2030-11-12 09:30',
         ])
             ->assertOk()
             ->assertJsonPath('problema_relatado', 'Não liga e esquenta');
@@ -171,9 +171,9 @@ class OrdemServicoApiTest extends TestCase
         $os->mudarStatus(StatusOrdemServico::AguardandoDiagnostico);
         $os->mudarStatus(StatusOrdemServico::DiagnosticoRealizado);
 
-        $this->putJson("/api/ordens-servico/{$os->id}", ['problema_relatado' => 'Outro'])
+        $this->putJson("/api/ordens-servico/{$os->id}", ['retirada_agendada' => '2030-11-13 10:00'])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'A OS só pode ser editada antes do diagnóstico.');
+            ->assertJsonValidationErrors(['retirada_agendada' => 'Não é possível alterar a retirada combinada com a OS em "Diagnóstico realizado".']);
     }
 
     public function test_registra_retirada_e_diagnostico(): void
