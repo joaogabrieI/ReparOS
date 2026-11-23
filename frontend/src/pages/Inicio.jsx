@@ -28,6 +28,48 @@ function quandoRelativo(iso, agora) {
   return mesmoDia(d, ontem) ? 'ontem' : diaMes(iso)
 }
 
+// Status em que o equipamento já pode voltar para o cliente (pronto, orçamento recusado ou OS cancelada
+// com o equipamento ainda na assistência).
+function prontaParaDevolver(ordem) {
+  return ['pronto_para_retirada', 'orcamento_recusado'].includes(ordem.status) || (ordem.status === 'cancelada' && ordem.devolucao_pendente)
+}
+
+// Como cada compromisso aparece na agenda: a retirada busca o equipamento no cliente (OS aberta) e a
+// entrega leva o equipamento de volta ao endereço de entrega da OS.
+const TIPOS_AGENDA = {
+  retirada: { rotulo: 'Retirada', icone: 'ph-arrow-circle-down', matiz: 289 },
+  entrega: { rotulo: 'Entrega', icone: 'ph-truck', matiz: 155 },
+}
+
+function TipoAgenda({ tipo }) {
+  const t = TIPOS_AGENDA[tipo]
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        height: 24,
+        padding: '0 9px',
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 500,
+        whiteSpace: 'nowrap',
+        color: `oklch(0.84 0.1 ${t.matiz})`,
+        background: `oklch(0.82 0.1 ${t.matiz} / 0.1)`,
+        border: `1px solid oklch(0.82 0.1 ${t.matiz} / 0.32)`,
+      }}
+    >
+      <i className={`ph ${t.icone}`} aria-hidden="true" />
+      {t.rotulo}
+    </span>
+  )
+}
+
+function plural(n, singular, pluralTexto) {
+  return n === 1 ? `1 ${singular}` : `${n} ${pluralTexto}`
+}
+
 // Ação sugerida quando a OS está parada esperando o cliente.
 function acaoSugerida(ordem) {
   if (estaParada(ordem) && ['orcamento_enviado', 'aguardando_aprovacao'].includes(ordem.status)) return 'Cobrar resposta'
@@ -61,8 +103,8 @@ function Indicador({ rotulo, valor, detalhe, icone, matiz, destaque }) {
   )
 }
 
-// Tela inicial: o que precisa de ação, retiradas, pendentes por status e atividade recente (RF08, RF21, RF22, RF24).
-// Tudo vem da listagem de OS da API; a retirada usa o endereço do cadastro do cliente.
+// Tela inicial: o que precisa de ação, agenda de retiradas e entregas, pendentes por status e atividade recente (RF08, RF21, RF22, RF24).
+// Tudo vem da listagem de OS da API; a retirada usa o endereço do cadastro do cliente e a entrega, o endereço de entrega da OS.
 export default function Inicio() {
   const { ordens, clientes, usuario } = useDados()
   const [agora] = useState(() => new Date())
@@ -76,14 +118,36 @@ export default function Inicio() {
 
   const amanha = new Date(agora)
   amanha.setDate(amanha.getDate() + 1)
-  const retiradas = pendentes
-    .filter((o) => o.status === 'aberta' && o.retirada_agendada)
-    .filter((o) => {
-      const d = new Date(o.retirada_agendada)
-      return mesmoDia(d, agora) || mesmoDia(d, amanha)
-    })
-    .sort((a, b) => a.retirada_agendada.localeCompare(b.retirada_agendada))
-  const retiradasHoje = retiradas.filter((o) => mesmoDia(new Date(o.retirada_agendada), agora)).length
+  const hojeOuAmanha = (iso) => mesmoDia(new Date(iso), agora) || mesmoDia(new Date(iso), amanha)
+
+  // Agenda de hoje e amanhã: retiradas combinadas (OS aberta, equipamento ainda com o cliente) e entregas
+  // no endereço (forma_devolucao = entrega com data marcada), em ordem de horário.
+  const agenda = [
+    ...pendentes
+      .filter((o) => o.status === 'aberta' && o.retirada_agendada && hojeOuAmanha(o.retirada_agendada))
+      .map((o) => ({
+        tipo: 'retirada',
+        quando: o.retirada_agendada,
+        endereco: clientes.find((c) => c.id === o.cliente?.id)?.endereco,
+        acao: 'Registrar retirada',
+        pronta: true,
+        ordem: o,
+      })),
+    ...pendentes
+      .filter((o) => o.forma_devolucao === 'entrega' && o.entrega_agendada && hojeOuAmanha(o.entrega_agendada))
+      .map((o) => ({
+        tipo: 'entrega',
+        quando: o.entrega_agendada,
+        endereco: o.endereco_entrega || clientes.find((c) => c.id === o.cliente?.id)?.endereco,
+        // Entrega marcada com o reparo ainda em andamento: avisa em vez de sugerir registrar a entrega.
+        acao: prontaParaDevolver(o) ? 'Registrar entrega' : 'OS ainda não pronta',
+        pronta: prontaParaDevolver(o),
+        ordem: o,
+      })),
+  ].sort((a, b) => new Date(a.quando) - new Date(b.quando))
+  const agendaHoje = agenda.filter((c) => mesmoDia(new Date(c.quando), agora))
+  const retiradasHoje = agendaHoje.filter((c) => c.tipo === 'retirada').length
+  const entregasHoje = agendaHoje.filter((c) => c.tipo === 'entrega').length
 
   const entreguesNoMes = (mes, ano) =>
     ordens.filter((o) => {
@@ -109,8 +173,8 @@ export default function Inicio() {
     .slice(0, 6)
 
   const resumoDia = [
-    retiradasHoje === 1 ? '1 retirada hoje' : `${retiradasHoje} retiradas hoje`,
-    paradas.length === 1 ? '1 OS parada' : `${paradas.length} OS paradas`,
+    plural(retiradasHoje, 'retirada', 'retiradas') + (entregasHoje ? ` e ${plural(entregasHoje, 'entrega', 'entregas')}` : '') + ' hoje',
+    plural(paradas.length, 'OS parada', 'OS paradas'),
   ].join(', ')
 
   function buscar(e) {
@@ -230,51 +294,57 @@ export default function Inicio() {
               })}
             </div>
 
-            <div className="painel tabela">
+            <section className="painel tabela" aria-labelledby="agenda-titulo">
               <div className="painel-cabecalho">
-                <i className="ph ph-truck" style={{ color: 'var(--color-accent-400)' }} />
-                <span style={{ fontWeight: 500, flex: 1 }}>Retiradas combinadas</span>
+                <i className="ph ph-calendar-check" style={{ color: 'var(--color-accent-400)' }} aria-hidden="true" />
+                <h2 id="agenda-titulo" style={{ fontWeight: 500, flex: 1, fontSize: 'inherit', margin: 0 }}>
+                  Retiradas e entregas combinadas
+                </h2>
                 <span style={{ fontSize: 12.5, color: 'var(--color-neutral-500)' }}>hoje e amanhã</span>
               </div>
-              {retiradas.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)' }}>Nenhuma retirada combinada para hoje ou amanhã.</div>}
-              {retiradas.map((o) => (
+              {agenda.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)' }}>Nenhuma retirada ou entrega combinada para hoje ou amanhã.</div>}
+              {agenda.map(({ tipo, quando, endereco, acao, pronta, ordem: o }) => (
                 <button
-                  key={o.id}
+                  key={`${tipo}-${o.id}`}
                   className="tabela-linha"
                   onClick={() => navegar(`/os/${o.id}`)}
-                  style={{ gridTemplateColumns: '76px 36px minmax(0,1fr) minmax(0,1.2fr) 150px' }}
+                  style={{ gridTemplateColumns: '64px 96px minmax(0,1fr) minmax(0,1.1fr) 150px' }}
                 >
                   <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
-                    <span style={{ fontSize: 16, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{hora(o.retirada_agendada)}</span>
-                    <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>{mesmoDia(new Date(o.retirada_agendada), agora) ? 'Hoje' : 'Amanhã'}</span>
+                    <span style={{ fontSize: 16, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{hora(quando)}</span>
+                    <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>{mesmoDia(new Date(quando), agora) ? 'Hoje' : 'Amanhã'}</span>
                   </span>
-                  <span
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--color-neutral-900)',
-                      display: 'grid',
-                      placeItems: 'center',
-                      color: 'var(--color-neutral-300)',
-                    }}
-                  >
-                    <i className={`ph ${iconeEquipamento(o.equipamento?.tipo)}`} />
+                  <span>
+                    <TipoAgenda tipo={tipo} />
                   </span>
                   <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3, minWidth: 0 }}>
                     <span style={{ fontWeight: 500 }}>{o.cliente?.nome}</span>
                     <span className="truncar" style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
-                      {o.equipamento?.modelo} · {o.numero}
+                      <i className={`ph ${iconeEquipamento(o.equipamento?.tipo)}`} aria-hidden="true" /> {o.equipamento?.modelo} · {o.numero}
                     </span>
                   </span>
                   <span className="truncar" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--color-neutral-400)', fontSize: 13 }}>
-                    <i className="ph ph-map-pin" />
-                    <span className="truncar">{clientes.find((c) => c.id === o.cliente?.id)?.endereco}</span>
+                    <i className="ph ph-map-pin" aria-hidden="true" />
+                    <span className="truncar">{endereco || 'Endereço não informado'}</span>
                   </span>
-                  <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--color-accent-300)' }}>Registrar retirada →</span>
+                  <span
+                    style={{
+                      textAlign: 'right',
+                      fontSize: 13,
+                      color: pronta ? 'var(--color-accent-300)' : PERIGO,
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      alignItems: 'center',
+                      gap: 5,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {!pronta && <i className="ph ph-warning" aria-hidden="true" />}
+                    {acao} {pronta && '→'}
+                  </span>
                 </button>
               ))}
-            </div>
+            </section>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
