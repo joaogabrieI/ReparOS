@@ -3,7 +3,7 @@ import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
-import { detalhar, estaParada, estaPendente } from '../data/regras'
+import { detalhar, estaParada } from '../data/regras'
 import { corStatus, DIAS_PARADA, iconeEquipamento, PENDENTES, infoStatus } from '../data/status'
 import { retirada, tempoNaEtapa } from '../data/formato'
 import { listarOrdens } from '../services/ordens'
@@ -11,18 +11,31 @@ import { listarOrdens } from '../services/ordens'
 const GRID = '150px minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.4fr) 150px 190px'
 const PERIGO = 'oklch(0.82 0.12 25)'
 
-// Tela inicial: OS não entregues agrupadas por status, com destaque para as paradas (RF21, RF24).
-// A busca e o filtro de paradas são feitos na API (pendentes, busca e paradas em /api/ordens-servico).
+// OS não entregues agrupadas por status, com destaque para as paradas (RF21, RF24).
+// As contagens vêm do painel da API (/api/painel) e as linhas, da lista de pendentes (/api/ordens-servico?pendentes=1),
+// buscadas ao abrir a tela. A busca e o filtro de paradas também são feitos na API.
 export default function OsPendentes({ buscaInicial = '' }) {
-  const { ordens, carregado, erro: erroDados } = useDados()
+  const { painel, recarregar, erro: erroDados } = useDados()
   const [busca, setBusca] = useState(buscaInicial)
   const [soParadas, setSoParadas] = useState(false)
+  const [pendentes, setPendentes] = useState(null)
   const [encontradas, setEncontradas] = useState(null)
   const [erro, setErro] = useState('')
 
-  const pendentes = ordens.filter(estaPendente)
-  const paradas = pendentes.filter(estaParada)
   const filtrando = Boolean(busca.trim()) || soParadas
+  const total = painel?.pendentes ?? pendentes?.length ?? 0
+  const nParadas = painel?.paradas ?? 0
+
+  useEffect(() => {
+    let ativo = true
+    recarregar()
+    listarOrdens({ pendentes: true })
+      .then((lista) => ativo && setPendentes(lista.map(detalhar)))
+      .catch((e) => ativo && setErro(e.message))
+    return () => {
+      ativo = false
+    }
+  }, [recarregar])
 
   useEffect(() => {
     if (!busca.trim() && !soParadas) return
@@ -43,9 +56,9 @@ export default function OsPendentes({ buscaInicial = '' }) {
   }, [busca, soParadas])
 
   // Enquanto a busca não volta, a lista mostra o resultado anterior.
-  const visiveis = filtrando ? (encontradas ?? pendentes) : pendentes
+  const visiveis = (filtrando ? (encontradas ?? pendentes) : pendentes) ?? []
 
-  const contagem = PENDENTES.map((status) => ({ status, n: pendentes.filter((o) => o.status === status).length }))
+  const contagem = PENDENTES.map((status) => ({ status, n: painel?.por_status[status] ?? 0 }))
   // A recusa e o cancelamento só aparecem na faixa quando existir alguma OS neles.
   const faixa = contagem.filter((c) => !['orcamento_recusado', 'cancelada'].includes(c.status) || c.n > 0)
   const grupos = PENDENTES.map((status) => ({ status, linhas: visiveis.filter((o) => o.status === status) })).filter((g) => g.linhas.length)
@@ -78,15 +91,15 @@ export default function OsPendentes({ buscaInicial = '' }) {
         <div>
           <h1 className="pagina-titulo">OS pendentes</h1>
           <div className="pagina-subtitulo">
-            {pendentes.length} {pendentes.length === 1 ? 'ordem não entregue' : 'ordens não entregues'}, agrupadas por status
+            {total} {total === 1 ? 'ordem não entregue' : 'ordens não entregues'}, agrupadas por status
           </div>
         </div>
 
-        {paradas.length > 0 && (
+        {nParadas > 0 && (
           <div className="aviso aviso-perigo">
             <i className="ph ph-clock-countdown" style={{ color: PERIGO, fontSize: 19 }} />
             <span style={{ flex: 1 }}>
-              <b style={{ fontWeight: 500 }}>{paradas.length === 1 ? '1 OS parada' : `${paradas.length} OS paradas`}</b>{' '}
+              <b style={{ fontWeight: 500 }}>{nParadas === 1 ? '1 OS parada' : `${nParadas} OS paradas`}</b>{' '}
               <span style={{ color: 'var(--color-neutral-400)' }}>na mesma etapa há mais de {DIAS_PARADA} dias, destacadas abaixo</span>
             </span>
             <button className="btn btn-link" onClick={() => setSoParadas(!soParadas)}>
@@ -126,7 +139,7 @@ export default function OsPendentes({ buscaInicial = '' }) {
           )}
           {grupos.length === 0 && !erro && !erroDados && (
             <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--color-neutral-500)' }} role="status">
-              {carregado ? 'Nenhuma OS encontrada.' : 'Carregando…'}
+              {pendentes ? 'Nenhuma OS encontrada.' : 'Carregando…'}
             </div>
           )}
 

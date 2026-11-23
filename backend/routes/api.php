@@ -8,6 +8,7 @@ use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\EquipamentoController;
 use App\Http\Controllers\OrcamentoController;
 use App\Http\Controllers\OrdemServicoController;
+use App\Http\Controllers\PainelController;
 use App\Http\Controllers\ReparoController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\TermosController;
@@ -47,6 +48,9 @@ Route::middleware(['auth:sanctum', 'termos.aceitos'])->group(function () {
         Route::put('/assistencia', [AssistenciaController::class, 'update']);
         Route::get('/atividades', [AtividadeController::class, 'index']);
     });
+
+    // Contagens, agenda de hoje e amanhã, ações e atividade recente (Início, barra lateral e OS pendentes).
+    Route::get('/painel', PainelController::class);
 
     Route::apiResource('clientes', ClienteController::class)->except('destroy');
     Route::apiResource('equipamentos', EquipamentoController::class)->except('destroy');

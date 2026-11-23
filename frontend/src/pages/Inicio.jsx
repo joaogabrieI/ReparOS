@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Layout from '../components/Layout'
 import Pill from '../components/Pill'
 import { navegar } from '../components/roteador'
 import { useDados } from '../data/contexto'
 import { diaMes, hora, tempoNaEtapa } from '../data/formato'
-import { estaParada, estaPendente } from '../data/regras'
+import { estaParada } from '../data/regras'
 import { corStatus, DIAS_PARADA, iconeEquipamento, infoStatus, PENDENTES } from '../data/status'
 
 const PERIGO = 'oklch(0.84 0.12 25)'
@@ -26,12 +26,6 @@ function quandoRelativo(iso, agora) {
   const ontem = new Date(agora)
   ontem.setDate(ontem.getDate() - 1)
   return mesmoDia(d, ontem) ? 'ontem' : diaMes(iso)
-}
-
-// Status em que o equipamento já pode voltar para o cliente (pronto, orçamento recusado ou OS cancelada
-// com o equipamento ainda na assistência).
-function prontaParaDevolver(ordem) {
-  return ['pronto_para_retirada', 'orcamento_recusado'].includes(ordem.status) || (ordem.status === 'cancelada' && ordem.devolucao_pendente)
 }
 
 // Como cada compromisso aparece na agenda: a retirada busca o equipamento no cliente (OS aberta) e a
@@ -104,77 +98,42 @@ function Indicador({ rotulo, valor, detalhe, icone, matiz, destaque }) {
 }
 
 // Tela inicial: o que precisa de ação, agenda de retiradas e entregas, pendentes por status e atividade recente (RF08, RF21, RF22, RF24).
-// Tudo vem da listagem de OS da API; a retirada usa o endereço do cadastro do cliente e a entrega, o endereço de entrega da OS.
+// Tudo vem do painel da API (/api/painel), que já conta e escolhe as OS; a retirada usa o endereço do cadastro do
+// cliente e a entrega, o endereço de entrega da OS. Ao abrir a tela, o painel é atualizado.
 export default function Inicio() {
-  const { ordens, clientes, usuario } = useDados()
+  const { painel, usuario, recarregar, erro } = useDados()
   const [agora] = useState(() => new Date())
   const [busca, setBusca] = useState('')
 
-  const pendentes = ordens.filter(estaPendente)
-  const paradas = pendentes.filter(estaParada)
-  const prontas = pendentes.filter((o) => o.status === 'pronto_para_retirada')
-  const abertasHoje = ordens.filter((o) => mesmoDia(new Date(o.data_abertura), agora)).length
-  const maisAntiga = Math.max(0, ...paradas.map((o) => o.diasNaEtapa))
+  useEffect(() => {
+    recarregar()
+  }, [recarregar])
 
-  const amanha = new Date(agora)
-  amanha.setDate(amanha.getDate() + 1)
-  const hojeOuAmanha = (iso) => mesmoDia(new Date(iso), agora) || mesmoDia(new Date(iso), amanha)
+  const p = painel ?? { pendentes: 0, por_status: {}, paradas: 0, parada_mais_antiga_dias: 0, prontas: 0, pronta_desde: null, abertas_hoje: 0, entregues_mes: 0, entregues_mes_anterior: 0, agenda: [], acoes: [], atividade: [] }
 
   // Agenda de hoje e amanhã: retiradas combinadas (OS aberta, equipamento ainda com o cliente) e entregas
-  // no endereço (forma_devolucao = entrega com data marcada), em ordem de horário.
-  const agenda = [
-    ...pendentes
-      .filter((o) => o.status === 'aberta' && o.retirada_agendada && hojeOuAmanha(o.retirada_agendada))
-      .map((o) => ({
-        tipo: 'retirada',
-        quando: o.retirada_agendada,
-        endereco: clientes.find((c) => c.id === o.cliente?.id)?.endereco,
-        acao: 'Registrar retirada',
-        pronta: true,
-        ordem: o,
-      })),
-    ...pendentes
-      .filter((o) => o.forma_devolucao === 'entrega' && o.entrega_agendada && hojeOuAmanha(o.entrega_agendada))
-      .map((o) => ({
-        tipo: 'entrega',
-        quando: o.entrega_agendada,
-        endereco: o.endereco_entrega || clientes.find((c) => c.id === o.cliente?.id)?.endereco,
-        // Entrega marcada com o reparo ainda em andamento: avisa em vez de sugerir registrar a entrega.
-        acao: prontaParaDevolver(o) ? 'Registrar entrega' : 'OS ainda não pronta',
-        pronta: prontaParaDevolver(o),
-        ordem: o,
-      })),
-  ].sort((a, b) => new Date(a.quando) - new Date(b.quando))
+  // no endereço; entrega marcada com o reparo ainda em andamento avisa em vez de sugerir registrar a entrega.
+  const agenda = p.agenda.map((c) => ({
+    ...c,
+    acao: c.tipo === 'retirada' ? 'Registrar retirada' : c.pronta ? 'Registrar entrega' : 'OS ainda não pronta',
+  }))
   const agendaHoje = agenda.filter((c) => mesmoDia(new Date(c.quando), agora))
   const retiradasHoje = agendaHoje.filter((c) => c.tipo === 'retirada').length
   const entregasHoje = agendaHoje.filter((c) => c.tipo === 'entrega').length
 
-  const entreguesNoMes = (mes, ano) =>
-    ordens.filter((o) => {
-      if (!o.data_entrega) return false
-      const d = new Date(o.data_entrega)
-      return d.getMonth() === mes && d.getFullYear() === ano
-    }).length
   const mesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1)
-  const entregues = entreguesNoMes(agora.getMonth(), agora.getFullYear())
-  const diferenca = entregues - entreguesNoMes(mesAnterior.getMonth(), mesAnterior.getFullYear())
+  const entregues = p.entregues_mes
+  const diferenca = entregues - p.entregues_mes_anterior
 
-  const acoes = pendentes
-    .filter((o) => o.status !== 'aberta')
-    .sort((a, b) => Number(estaParada(b)) - Number(estaParada(a)) || b.diasNaEtapa - a.diasNaEtapa)
-    .slice(0, 5)
-
-  const distribuicao = PENDENTES.map((status) => ({ status, n: pendentes.filter((o) => o.status === status).length })).filter((d) => d.n > 0)
+  const acoes = p.acoes
+  const distribuicao = PENDENTES.map((status) => ({ status, n: p.por_status[status] ?? 0 })).filter((d) => d.n > 0)
 
   // Última mudança de status de cada OS.
-  const atividade = ordens
-    .map((o) => ({ status_novo: o.status, data_hora: o.data_status, ordem: o }))
-    .sort((a, b) => b.data_hora.localeCompare(a.data_hora))
-    .slice(0, 6)
+  const atividade = p.atividade.map((o) => ({ status_novo: o.status, data_hora: o.data_status, ordem: o }))
 
   const resumoDia = [
     plural(retiradasHoje, 'retirada', 'retiradas') + (entregasHoje ? ` e ${plural(entregasHoje, 'entrega', 'entregas')}` : '') + ' hoje',
-    plural(paradas.length, 'OS parada', 'OS paradas'),
+    plural(p.paradas, 'OS parada', 'OS paradas'),
   ].join(', ')
 
   function buscar(e) {
@@ -210,25 +169,31 @@ export default function Inicio() {
           </div>
         </div>
 
+        {erro && (
+          <div className="erro-campo" role="alert" style={{ marginTop: 0 }}>
+            {erro}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 14 }}>
           <Indicador
             rotulo="OS pendentes"
-            valor={pendentes.length}
-            detalhe={abertasHoje === 1 ? '1 aberta hoje' : `${abertasHoje} abertas hoje`}
+            valor={p.pendentes}
+            detalhe={p.abertas_hoje === 1 ? '1 aberta hoje' : `${p.abertas_hoje} abertas hoje`}
             icone="ph-clipboard-text"
           />
           <Indicador
             rotulo={`Paradas há +${DIAS_PARADA} dias`}
-            valor={paradas.length}
-            detalhe={paradas.length ? `mais antiga: ${tempoNaEtapa(maisAntiga)}` : 'nenhuma OS parada'}
+            valor={p.paradas}
+            detalhe={p.paradas ? `mais antiga: ${tempoNaEtapa(p.parada_mais_antiga_dias)}` : 'nenhuma OS parada'}
             icone="ph-clock-countdown"
             matiz={25}
-            destaque={paradas.length > 0}
+            destaque={p.paradas > 0}
           />
           <Indicador
             rotulo="Prontas para retirada"
-            valor={prontas.length}
-            detalhe={prontas.length ? `pronta desde ${diaMes(prontas.map((o) => o.data_status).sort()[0])}` : 'nenhuma aguardando'}
+            valor={p.prontas}
+            detalhe={p.prontas ? `pronta desde ${diaMes(p.pronta_desde)}` : 'nenhuma aguardando'}
             icone="ph-check-circle"
             matiz={155}
           />
@@ -250,7 +215,11 @@ export default function Inicio() {
                   Ver todas as pendentes →
                 </a>
               </div>
-              {acoes.length === 0 && <div style={{ padding: 18, color: 'var(--color-neutral-500)' }}>Nada pendente por enquanto.</div>}
+              {acoes.length === 0 && (
+                <div style={{ padding: 18, color: 'var(--color-neutral-500)' }} role="status">
+                  {painel ? 'Nada pendente por enquanto.' : 'Carregando…'}
+                </div>
+              )}
               {acoes.map((o) => {
                 const parada = estaParada(o)
                 return (
@@ -351,7 +320,7 @@ export default function Inicio() {
             <div className="painel painel-pad">
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 500 }}>Pendentes por status</span>
-                <span style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>{pendentes.length} OS</span>
+                <span style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>{p.pendentes} OS</span>
               </div>
               <div style={{ display: 'flex', gap: 3, height: 8, borderRadius: 4, overflow: 'hidden' }}>
                 {distribuicao.map((d) => (

@@ -13,6 +13,13 @@ export function listarOrdens(filtros = {}) {
   return api(`/ordens-servico${query ? `?${query}` : ''}`)
 }
 
+// Resumo para o Início, a barra lateral e as OS pendentes: contagens (pendentes, por_status, paradas,
+// prontas, abertas_hoje, entregues_mes e entregues_mes_anterior), agenda de hoje e amanhã (retiradas e
+// entregas, com endereço), acoes (até 5 OS) e atividade (últimas 6 mudanças de status).
+export function buscarPainel() {
+  return api('/painel')
+}
+
 // Ficha da OS com equipamento, cliente, orçamento e histórico.
 export function buscarOrdem(id) {
   return api(`/ordens-servico/${id}`)

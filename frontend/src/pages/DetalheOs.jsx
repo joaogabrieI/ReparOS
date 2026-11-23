@@ -1509,7 +1509,7 @@ function CartaoMensagem({ titulo, texto, nota, onEnviar, erro, enviando }) {
 // Detalhe da OS com a ação da etapa atual (RF09 a RF20, RF22, RF24, RF25). Cada ação chama a etapa
 // correspondente da API, que avança o status e grava o histórico; a tela mostra a OS devolvida.
 export default function DetalheOs({ id }) {
-  const { clientes, recarregar, usuario, admin } = useDados()
+  const { recarregar, usuario, admin } = useDados()
   const [ordem, setOrdem] = useState(null)
   const [erroCarga, setErroCarga] = useState('')
   const refAcao = useRef(null)
@@ -1584,7 +1584,8 @@ export default function DetalheOs({ id }) {
   }
 
   const { cliente, equipamento } = ordem
-  const endereco = cliente.endereco ?? clientes.find((c) => c.id === cliente.id)?.endereco
+  // A ficha da OS já traz o endereço do cadastro do cliente.
+  const endereco = cliente.endereco
   const entregue = status === 'entregue'
   // Entregue ou cancelada antes da retirada: não há mais etapa a cumprir.
   const encerrada = entregue || canceladaEncerrada(ordem)

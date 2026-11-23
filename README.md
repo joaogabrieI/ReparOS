@@ -63,7 +63,7 @@ npm run dev
 
 Abra http://localhost:5173 e entre em `#/entrar` com um usuário do seed. Todas as telas da assistência usam a API:
 
-- **Início**, **OS pendentes** e barra lateral: listagem de OS (`/api/ordens-servico`), com as paradas destacadas pelo campo `parada` da API; a busca e o filtro "só paradas" das pendentes vão para a API.
+- **Início**, **OS pendentes** e barra lateral: contagens, agenda de hoje e amanhã, ações e atividade recente vêm do painel (`/api/painel`), sem carregar a lista inteira de OS; as linhas das pendentes vêm de `/api/ordens-servico?pendentes=1`, com as paradas destacadas pelo campo `parada` da API; a busca e o filtro "só paradas" das pendentes vão para a API. Trocar de tela não recarrega mais todas as OS e clientes: o painel só é atualizado ao abrir o Início ou as pendentes, depois de uma alteração ou quando tem mais de um minuto; a Abrir OS carrega a própria lista de clientes.
 - **Buscar OS**: busca (nº da OS, cliente, telefone, marca ou modelo), tipo, status, técnico responsável (ou "Minhas OS"), período, "só paradas" e ordenação, todos aplicados na API.
 - **Abrir OS**: escolhe o cliente (ou cadastra um novo), escolhe ou cadastra o equipamento e abre a OS com o problema, a retirada combinada e o técnico responsável (por padrão, quem abre).
 - **Detalhe da OS**: cada etapa chama a rota dela (retirada, diagnóstico, orçamento com rascunho e envio, resposta do cliente com o canal, reparo com peças trocadas, pronto, entrega ou devolução sem reparo) e mostra o histórico devolvido pela API, com quem fez cada mudança. O cartão **Técnico responsável** mostra quem cuida da OS e permite trocar por outro usuário ativo. O botão **Enviar WhatsApp** abre o link `wa.me` montado por `/whatsapp`; enviar o orçamento salva, registra o envio e abre a mensagem com a validade.
@@ -167,6 +167,7 @@ Regras da aplicação:
 | GET | `/api/assistencia` | token | Configurações da assistência |
 | PUT | `/api/assistencia` | admin | Altera `nome`, `telefone` e `dias_limite_parada` |
 | GET | `/api/atividades?usuario_id=&acao=&entidade=&entidade_id=&de=&ate=&page=` | admin | Registro de atividade, mais recente primeiro, 50 por página |
+| GET | `/api/painel` | token | Resumo da assistência: `pendentes`, `por_status`, `paradas`, `parada_mais_antiga_dias`, `prontas`, `pronta_desde`, `abertas_hoje`, `entregues_mes`, `entregues_mes_anterior`, `agenda` (retiradas e entregas de hoje e amanhã, com `tipo`, `quando`, `endereco`, `pronta` e a OS), `acoes` (até 5 OS em andamento, paradas primeiro) e `atividade` (últimas 6 mudanças de status) |
 | GET | `/api/clientes?busca=` | token | Clientes da assistência em ordem de nome, com nº de equipamentos e data da última OS; `busca` filtra por nome ou telefone |
 | POST | `/api/clientes` | token | Cadastra cliente (`nome`, `telefone_whatsapp`, `endereco`) |
 | GET | `/api/clientes/{id}` | token | Ficha do cliente com equipamentos e OS |

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ClienteDialog from '../components/ClienteDialog'
 import EquipamentoCampos from '../components/EquipamentoCampos'
 import Layout from '../components/Layout'
@@ -9,7 +9,7 @@ import { useDados } from '../data/contexto'
 import { agoraLocal, dataHora, diaMes, jaPassou, nomeEquipamento, telefone, telefoneNormalizado } from '../data/formato'
 import { EQUIPAMENTO_VAZIO } from '../data/regras'
 import { FORMAS_DEVOLUCAO, iconeEquipamento } from '../data/status'
-import { buscarCliente, salvarCliente } from '../services/clientes'
+import { buscarCliente, listarClientes, salvarCliente } from '../services/clientes'
 import { salvarEquipamento } from '../services/equipamentos'
 import { abrirOrdem } from '../services/ordens'
 
@@ -91,7 +91,9 @@ function LinhaResumo({ rotulo, children }) {
 // Abertura de OS: cliente, equipamento, problema relatado e retirada combinada (RF02, RF05, RF07, RF08).
 // Clientes e equipamentos vêm da API; um equipamento novo é cadastrado antes de abrir a OS.
 export default function AbrirOs({ clienteInicial }) {
-  const { clientes, recarregar, usuario, usuarios } = useDados()
+  const { recarregar, usuario, usuarios } = useDados()
+  // Clientes para a busca da tela, carregados ao abrir (e de novo depois de cadastrar um cliente).
+  const [clientes, setClientes] = useState([])
   const [clienteId, setClienteId] = useState(clienteInicial ?? null)
   const [ficha, setFicha] = useState(null)
   const [busca, setBusca] = useState('')
@@ -110,6 +112,18 @@ export default function AbrirOs({ clienteInicial }) {
   const [errosEquip, setErrosEquip] = useState({})
   const [erroGeral, setErroGeral] = useState('')
   const [enviando, setEnviando] = useState(false)
+
+  const carregarClientes = useCallback(
+    () =>
+      listarClientes()
+        .then(setClientes)
+        .catch((e) => setErroGeral(e.message)),
+    [],
+  )
+
+  useEffect(() => {
+    carregarClientes()
+  }, [carregarClientes])
 
   // Ficha do cliente escolhido: equipamentos e as OS de cada um.
   useEffect(() => {
@@ -408,7 +422,7 @@ export default function AbrirOs({ clienteInicial }) {
           onSalvar={(dados) => salvarCliente(dados)}
           onFechar={() => setNovoCliente(false)}
           onSalvo={(salvo) => {
-            recarregar()
+            carregarClientes()
             escolherCliente(salvo)
           }}
           onUsarExistente={escolherCliente}

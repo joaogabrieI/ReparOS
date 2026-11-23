@@ -203,7 +203,7 @@ function DialogoDesativar({ usuario, usuarios, onFechar, onDesativado }) {
 
 // Nome, WhatsApp da loja e dias para uma OS ser considerada parada.
 function PainelAssistencia() {
-  const { recarregar } = useDados()
+  const { recarregarUsuario } = useDados()
   const [form, setForm] = useState(null)
   const [erros, setErros] = useState({})
   const [aviso, setAviso] = useState('')
@@ -225,7 +225,8 @@ function PainelAssistencia() {
     try {
       await salvarAssistencia({ ...form, dias_limite_parada: Number(form.dias_limite_parada) })
       setAviso('Dados da assistência salvos.')
-      recarregar()
+      // O nome da assistência aparece na barra lateral (vem com o usuário logado).
+      recarregarUsuario()
     } catch (falha) {
       if (falha.erros) setErros(falha.erros)
       else setAviso(falha.message)
@@ -279,7 +280,7 @@ function PainelAssistencia() {
 // Equipe da assistência (só admin): criar, editar, mudar perfil, desativar e reativar usuários.
 // Usuário nunca é apagado; sempre sobra pelo menos um admin ativo (a API confere).
 export default function Equipe() {
-  const { usuario: eu, admin, recarregar } = useDados()
+  const { usuario: eu, admin, recarregarUsuarios } = useDados()
   const [usuarios, setUsuarios] = useState(null)
   const [dialogo, setDialogo] = useState(null)
   const [desativando, setDesativando] = useState(null)
@@ -306,7 +307,7 @@ export default function Equipe() {
     try {
       await reativarUsuario(u.id)
       carregar()
-      recarregar()
+      recarregarUsuarios()
     } catch (falha) {
       setErro(falha.message)
     }
@@ -419,7 +420,7 @@ export default function Equipe() {
             setDesativando(null)
             setAviso(mensagem)
             carregar()
-            recarregar()
+            recarregarUsuarios()
           }}
         />
       )}
@@ -431,7 +432,7 @@ export default function Equipe() {
           onSalvo={() => {
             setDialogo(null)
             carregar()
-            recarregar()
+            recarregarUsuarios()
           }}
         />
       )}

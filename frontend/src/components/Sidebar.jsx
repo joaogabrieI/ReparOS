@@ -1,5 +1,4 @@
 import { useDados } from '../data/contexto'
-import { estaPendente } from '../data/regras'
 import { api, apagarToken } from '../services/api'
 
 // Encerra o token na API (se ainda valer) e volta para a tela de entrar.
@@ -35,8 +34,9 @@ function iniciais(nome = '') {
 // Navegação principal da área da assistência (ReparOSSidebar, nav v2).
 // Estilo em .sidebar (index.css): fixa no desktop, gaveta no celular quando `aberta`.
 export default function Sidebar({ ativo, aberta = false }) {
-  const { ordens, usuario, admin } = useDados()
-  const pendentes = ordens.filter(estaPendente).length
+  const { painel, usuario, admin } = useDados()
+  // Contagem do painel da API (/api/painel), sem carregar a lista de OS.
+  const pendentes = painel?.pendentes ?? 0
 
   return (
     <nav id="menu-principal" className={`sidebar${aberta ? ' aberta' : ''}`} aria-label="Menu principal">
